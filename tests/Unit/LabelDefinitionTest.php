@@ -99,3 +99,28 @@ test('job identifiers are first class elements', function () {
 
     expect($definition->toArray()['elements'][0]['type'])->toBe('job_identifier');
 });
+
+test('upc a is a supported barcode symbology', function () {
+    $definition = LabelDefinition::fromArray([
+        'elements' => [[
+            'id' => (string) Str::ulid(),
+            'type' => 'barcode',
+            'x' => 5,
+            'y' => 5,
+            'width' => 40,
+            'height' => 20,
+            'rotation' => 0,
+            'symbology' => 'upc_a',
+            'value' => '{{ upc }}',
+        ]],
+        'fields' => [
+            'upc' => [
+                'type' => 'string',
+                'required' => true,
+                'label' => 'UPC',
+            ],
+        ],
+    ]);
+
+    expect($definition->toArray()['elements'][0]['symbology'])->toBe('upc_a');
+});
