@@ -8,6 +8,7 @@ use Database\Factories\LabelStockFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -21,15 +22,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable([
-    'name',
-    'width',
-    'height',
-    'media_type',
-    'description',
-    'sku',
-    'is_active',
-])]
+#[Fillable(['name', 'width', 'height', 'media_type', 'description', 'sku', 'is_active'])]
 class LabelStock extends Model
 {
     /** @use HasFactory<LabelStockFactory> */
@@ -53,5 +46,13 @@ class LabelStock extends Model
     public function heightInInches(): float
     {
         return (float) $this->height / 25.4;
+    }
+
+    /**
+     * @return HasMany<LabelTemplate, $this>
+     */
+    public function labelTemplates(): HasMany
+    {
+        return $this->hasMany(LabelTemplate::class);
     }
 }
