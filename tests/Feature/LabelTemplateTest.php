@@ -1,11 +1,13 @@
 <?php
 
+use App\LabelDefinition;
 use App\Models\LabelStock;
 use App\Models\LabelTemplate;
 use App\Models\LabelTemplateVersion;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Str;
 
 test('a label template belongs to a stock and has versioned definitions', function () {
     $stock = LabelStock::factory()->create();
@@ -15,10 +17,25 @@ test('a label template belongs to a stock and has versioned definitions', functi
     $creator = User::factory()->create();
     $definition = [
         'elements' => [
-            ['type' => 'text', 'x' => 6, 'y' => 5, 'value' => 'Part: {{ part_number }}'],
+            [
+                'id' => (string) Str::ulid(),
+                'type' => 'text',
+                'x' => 6,
+                'y' => 5,
+                'width' => 90,
+                'height' => 8,
+                'rotation' => 0,
+                'value' => 'Part: {{ part_number }}',
+                'style' => [
+                    'font_family' => 'sans',
+                    'font_size' => 4,
+                    'font_weight' => 'bold',
+                    'alignment' => 'left',
+                ],
+            ],
         ],
         'fields' => [
-            'part_number' => ['type' => 'string', 'required' => true],
+            'part_number' => ['type' => 'string', 'required' => true, 'label' => 'Part number'],
         ],
     ];
 
@@ -33,7 +50,8 @@ test('a label template belongs to a stock and has versioned definitions', functi
         ->and($version->revision_code)->toBe('0826')
         ->and($version->labelTemplate->is($template))->toBeTrue()
         ->and($version->creator->is($creator))->toBeTrue()
-        ->and($version->definition)->toBe($definition);
+        ->and($version->definition)->toBeInstanceOf(LabelDefinition::class)
+        ->and($version->definition->toArray())->toBe($definition);
 });
 
 test('a template exposes its highest published version', function () {

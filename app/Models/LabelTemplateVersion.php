@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\LabelDefinition;
+use App\LabelDefinitionCast;
 use Database\Factories\LabelTemplateVersionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,7 +17,7 @@ use Illuminate\Support\Carbon;
  * @property int $version
  * @property string $revision_code
  * @property int $schema_version
- * @property array<string, mixed> $definition
+ * @property LabelDefinition $definition
  * @property int|null $created_by
  * @property Carbon|null $published_at
  * @property Carbon|null $created_at
@@ -35,7 +37,7 @@ class LabelTemplateVersion extends Model
     protected function casts(): array
     {
         return [
-            'definition' => 'array',
+            'definition' => LabelDefinitionCast::class,
             'published_at' => 'immutable_datetime',
         ];
     }
