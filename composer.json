@@ -1,5 +1,4 @@
 {
-    "$schema": "https://getcomposer.org/schema.json",
     "name": "laravel/livewire-starter-kit",
     "type": "project",
     "description": "The official Laravel starter kit for Livewire.",
@@ -16,7 +15,10 @@
         "laravel/tinker": "^3.0",
         "livewire/blaze": "^1.0",
         "livewire/flux": "^2.13.1",
-        "livewire/livewire": "^4.1"
+        "livewire/flux-pro": "^2.16",
+        "livewire/livewire": "^4.1",
+        "owen-it/laravel-auditing": "^14.0",
+        "searsandrew/briar-rose": "^0.2.8"
     },
     "require-dev": {
         "fakerphp/faker": "^1.24",
@@ -113,5 +115,10 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "repositories": [{
+        "name": "flux-pro",
+        "type": "composer",
+        "url": "https://composer.fluxui.dev"
+    }]
 }
