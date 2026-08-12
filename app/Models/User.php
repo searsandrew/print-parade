@@ -11,6 +11,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -21,6 +22,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $email
  * @property Carbon|null $email_verified_at
  * @property string $password
+ * @property string|null $pin_hash
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -29,7 +31,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $updated_at
  */
 #[Fillable(['name', 'email', 'password'])]
-#[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
+#[Hidden(['password', 'pin_hash', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
@@ -58,5 +60,42 @@ class User extends Authenticatable implements PasskeyUser
         return Str::length($initials) > 1
             ? Str::substr($initials, 0, 1).Str::substr($initials, -1)
             : $initials;
+    }
+
+    /**
+     * Set the PIN used to attribute print jobs to this user.
+     */
+    public function assignPin(string $pin): void
+    {
+        if (preg_match('/\A\d{4,8}\z/', $pin) !== 1) {
+            throw new InvalidArgumentException('The PIN must contain between 4 and 8 digits.');
+        }
+
+        $this->pin_hash = self::hashPin($pin);
+    }
+
+    /**
+     * Remove this user's print-job PIN.
+     */
+    public function removePin(): void
+    {
+        $this->pin_hash = null;
+    }
+
+    /**
+     * Find the user identified by a print-job PIN.
+     */
+    public static function findByPin(string $pin): ?self
+    {
+        if (preg_match('/\A\d{4,8}\z/', $pin) !== 1) {
+            return null;
+        }
+
+        return self::query()->where('pin_hash', self::hashPin($pin))->first();
+    }
+
+    private static function hashPin(string $pin): string
+    {
+        return hash_hmac('sha256', $pin, (string) config('app.key'));
     }
 }
