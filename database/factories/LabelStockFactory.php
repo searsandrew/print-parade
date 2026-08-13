@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Enums\LabelMediaType;
+use App\Labels\Enums\LabelMediaType;
 use App\Models\LabelStock;
 use Illuminate\Database\Eloquent\Factories\Factory;
 

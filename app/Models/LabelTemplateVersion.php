@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\LabelDefinition;
-use App\LabelDefinitionCast;
+use App\Labels\Definitions\LabelDefinition;
+use App\Labels\Definitions\LabelDefinitionCast;
 use Database\Factories\LabelTemplateVersionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;

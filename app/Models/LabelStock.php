@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Enums\LabelMediaType;
+use App\Labels\Enums\LabelMediaType;
 use Carbon\Carbon;
 use Database\Factories\LabelStockFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;

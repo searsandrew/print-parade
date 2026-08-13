@@ -1,6 +1,6 @@
 <?php
 
-use App\LabelDefinition;
+use App\Labels\Definitions\LabelDefinition;
 use Illuminate\Support\Str;
 
 function textElement(array $overrides = []): array

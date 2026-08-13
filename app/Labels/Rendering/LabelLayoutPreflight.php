@@ -1,8 +1,9 @@
 <?php
 
-namespace App;
+namespace App\Labels\Rendering;
 
-use App\Enums\LabelRotation;
+use App\Labels\Definitions\ResolvedLabelDefinition;
+use App\Labels\Enums\LabelRotation;
 use InvalidArgumentException;
 
 final class LabelLayoutPreflight

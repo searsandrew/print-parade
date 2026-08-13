@@ -1,6 +1,6 @@
 <?php
 
-namespace App;
+namespace App\Labels\Rendering;
 
 use App\Models\LabelStock;
 use InvalidArgumentException;

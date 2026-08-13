@@ -1,6 +1,6 @@
 <?php
 
-use App\LabelDefinition;
+use App\Labels\Definitions\LabelDefinition;
 use App\Models\LabelStock;
 use App\Models\LabelTemplate;
 use App\Models\LabelTemplateVersion;

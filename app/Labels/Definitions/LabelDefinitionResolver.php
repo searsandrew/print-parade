@@ -1,6 +1,6 @@
 <?php
 
-namespace App;
+namespace App\Labels\Definitions;
 
 use DateTimeImmutable;
 use InvalidArgumentException;

@@ -1,13 +1,13 @@
 <?php
 
-namespace App;
+namespace App\Labels\Definitions;
 
-use App\Enums\BarcodeSymbology;
-use App\Enums\LabelElementType;
-use App\Enums\LabelFontWeight;
-use App\Enums\LabelRotation;
-use App\Enums\LabelTextAlignment;
-use App\Enums\SemanticFontFamily;
+use App\Labels\Enums\BarcodeSymbology;
+use App\Labels\Enums\LabelElementType;
+use App\Labels\Enums\LabelFontWeight;
+use App\Labels\Enums\LabelRotation;
+use App\Labels\Enums\LabelTextAlignment;
+use App\Labels\Enums\SemanticFontFamily;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Support\Str;
 use InvalidArgumentException;

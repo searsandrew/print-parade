@@ -1,8 +1,8 @@
 <?php
 
-use App\LabelLayoutPreflight;
-use App\LabelRenderContext;
-use App\ResolvedLabelDefinition;
+use App\Labels\Definitions\ResolvedLabelDefinition;
+use App\Labels\Rendering\LabelLayoutPreflight;
+use App\Labels\Rendering\LabelRenderContext;
 
 test('elements that fit the stock pass layout preflight', function () {
     $label = new ResolvedLabelDefinition([[

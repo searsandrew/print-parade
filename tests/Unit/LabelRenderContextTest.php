@@ -1,6 +1,6 @@
 <?php
 
-use App\LabelRenderContext;
+use App\Labels\Rendering\LabelRenderContext;
 use App\Models\LabelStock;
 
 test('millimeters are converted to printer dots for supported resolutions', function (int $dpi, int $dots) {

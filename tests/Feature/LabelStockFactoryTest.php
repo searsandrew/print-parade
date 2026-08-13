@@ -1,6 +1,6 @@
 <?php
 
-use App\Enums\LabelMediaType;
+use App\Labels\Enums\LabelMediaType;
 use App\Models\LabelStock;
 
 test('the factory creates a valid active gap label stock', function () {

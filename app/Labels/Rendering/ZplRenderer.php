@@ -1,15 +1,16 @@
 <?php
 
-namespace App;
+namespace App\Labels\Rendering;
 
-use App\Enums\LabelElementType;
-use App\Enums\LabelFontWeight;
-use App\Enums\LabelRotation;
-use App\Enums\LabelTextAlignment;
-use App\Enums\SemanticFontFamily;
+use App\Labels\Definitions\ResolvedLabelDefinition;
+use App\Labels\Enums\LabelElementType;
+use App\Labels\Enums\LabelFontWeight;
+use App\Labels\Enums\LabelRotation;
+use App\Labels\Enums\LabelTextAlignment;
+use App\Labels\Enums\SemanticFontFamily;
 use InvalidArgumentException;
 
-final readonly class ZplRenderer
+final readonly class ZplRenderer implements LabelRenderer
 {
     public function __construct(private LabelLayoutPreflight $preflight = new LabelLayoutPreflight) {}
 

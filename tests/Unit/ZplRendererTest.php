@@ -1,23 +1,26 @@
 <?php
 
-use App\LabelRenderContext;
-use App\ResolvedLabelDefinition;
-use App\ZplRenderer;
+use App\Labels\Definitions\ResolvedLabelDefinition;
+use App\Labels\Rendering\LabelRenderContext;
+use App\Labels\Rendering\LabelRenderer;
+use App\Labels\Rendering\ZplRenderer;
 
 test('text is rendered as a complete zpl label at the selected resolution', function () {
     $label = new ResolvedLabelDefinition([zplTextElement()], []);
+    $renderer = new ZplRenderer;
 
-    $zpl = (new ZplRenderer)->render($label, new LabelRenderContext(101.6, 50.8, 203));
+    $zpl = $renderer->render($label, new LabelRenderContext(101.6, 50.8, 203));
 
-    expect($zpl)->toBe(implode("\n", [
-        '^XA',
-        '^CI28',
-        '^PW812',
-        '^LL406',
-        '^LH0,0',
-        '^FO40,40^A0N,32,19^FB719,2,0,L,0^FH\\^FDPart ABC-123^FS',
-        '^XZ',
-    ]));
+    expect($renderer)->toBeInstanceOf(LabelRenderer::class)
+        ->and($zpl)->toBe(implode("\n", [
+            '^XA',
+            '^CI28',
+            '^PW812',
+            '^LL406',
+            '^LH0,0',
+            '^FO40,40^A0N,32,19^FB719,2,0,L,0^FH\\^FDPart ABC-123^FS',
+            '^XZ',
+        ]));
 });
 
 test('semantic fonts rotation alignment and bold weight map to zpl', function () {
