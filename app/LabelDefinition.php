@@ -51,6 +51,17 @@ final readonly class LabelDefinition implements Arrayable, JsonSerializable
     }
 
     /**
+     * Resolve input and system values into renderer-ready elements.
+     *
+     * @param  array<string, mixed>  $input
+     * @param  array<string, mixed>  $system
+     */
+    public function resolve(array $input, array $system): ResolvedLabelDefinition
+    {
+        return (new LabelDefinitionResolver)->resolve($this, $input, $system);
+    }
+
+    /**
      * @param  array<string, mixed>  $definition
      */
     private static function validate(array $definition): void
@@ -111,6 +122,10 @@ final readonly class LabelDefinition implements Arrayable, JsonSerializable
 
         if (! isset($element['rotation']) || ! is_int($element['rotation']) || LabelRotation::tryFrom($element['rotation']) === null) {
             throw new InvalidArgumentException("Element {$index} must use a supported rotation.");
+        }
+
+        if (array_key_exists('hide_when_empty', $element) && ! is_bool($element['hide_when_empty'])) {
+            throw new InvalidArgumentException("Element {$index} hide_when_empty must be a boolean.");
         }
 
         match ($type) {
@@ -184,6 +199,18 @@ final readonly class LabelDefinition implements Arrayable, JsonSerializable
 
         if (! isset($field['label']) || ! is_string($field['label']) || trim($field['label']) === '') {
             throw new InvalidArgumentException("Field {$name} must have a label.");
+        }
+
+        if ($name === 'system') {
+            throw new InvalidArgumentException('The system namespace is reserved.');
+        }
+
+        if (isset($field['format']) && ($field['format'] !== 'upc_a' || $field['type'] !== 'string')) {
+            throw new InvalidArgumentException("Field {$name} has an unsupported format for its type.");
+        }
+
+        if (array_key_exists('default', $field)) {
+            LabelDefinitionResolver::validateFieldValue($name, $field, $field['default']);
         }
     }
 
