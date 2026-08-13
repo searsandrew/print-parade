@@ -12,7 +12,10 @@ use InvalidArgumentException;
 
 final readonly class ZplRenderer implements LabelRenderer
 {
-    public function __construct(private LabelLayoutPreflight $preflight = new LabelLayoutPreflight) {}
+    public function __construct(
+        private LabelLayoutPreflight $preflight = new LabelLayoutPreflight,
+        private ZplBarcodeRenderer $barcodeRenderer = new ZplBarcodeRenderer,
+    ) {}
 
     public function render(ResolvedLabelDefinition $label, LabelRenderContext $context): string
     {
@@ -29,6 +32,7 @@ final readonly class ZplRenderer implements LabelRenderer
         foreach ($label->elements() as $element) {
             $commands[] = match (LabelElementType::from($element['type'])) {
                 LabelElementType::Text, LabelElementType::JobIdentifier => $this->renderText($element, $context),
+                LabelElementType::Barcode => $this->barcodeRenderer->render($element, $context),
                 LabelElementType::Line, LabelElementType::Rectangle => $this->renderGraphicBox($element, $context),
                 default => throw new InvalidArgumentException("ZPL rendering for {$element['type']} elements is not implemented."),
             };

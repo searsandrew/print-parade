@@ -84,13 +84,13 @@ test('lines and rectangles render as zpl graphic boxes', function () {
 });
 
 test('elements not included in the first zpl slice fail explicitly', function () {
-    $element = zplShapeElement('barcode');
+    $element = zplShapeElement('image');
 
     (new ZplRenderer)->render(
         new ResolvedLabelDefinition([$element], []),
         new LabelRenderContext(101.6, 50.8, 203),
     );
-})->throws(InvalidArgumentException::class, 'ZPL rendering for barcode elements is not implemented.');
+})->throws(InvalidArgumentException::class, 'ZPL rendering for image elements is not implemented.');
 
 function zplTextElement(array $overrides = []): array
 {

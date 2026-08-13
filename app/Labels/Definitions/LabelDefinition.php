@@ -7,6 +7,7 @@ use App\Labels\Enums\LabelElementType;
 use App\Labels\Enums\LabelFontWeight;
 use App\Labels\Enums\LabelRotation;
 use App\Labels\Enums\LabelTextAlignment;
+use App\Labels\Enums\QrErrorCorrection;
 use App\Labels\Enums\SemanticFontFamily;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Support\Str;
@@ -176,6 +177,27 @@ final readonly class LabelDefinition implements Arrayable, JsonSerializable
 
         if (! isset($element['symbology']) || ! is_string($element['symbology']) || BarcodeSymbology::tryFrom($element['symbology']) === null) {
             throw new InvalidArgumentException("Element {$index} must use a supported barcode symbology.");
+        }
+
+        if (array_key_exists('show_text', $element) && ! is_bool($element['show_text'])) {
+            throw new InvalidArgumentException("Element {$index} show_text must be a boolean.");
+        }
+
+        if (array_key_exists('module_width', $element)) {
+            self::requirePositiveNumber($element, 'module_width', $index);
+        }
+
+        if (array_key_exists('bar_height', $element)) {
+            self::requirePositiveNumber($element, 'bar_height', $index);
+
+            if ((float) $element['bar_height'] > (float) $element['height']) {
+                throw new InvalidArgumentException("Element {$index} bar_height cannot exceed its height.");
+            }
+        }
+
+        if (array_key_exists('error_correction', $element)
+            && (! is_string($element['error_correction']) || QrErrorCorrection::tryFrom($element['error_correction']) === null)) {
+            throw new InvalidArgumentException("Element {$index} must use a supported QR error correction level.");
         }
     }
 

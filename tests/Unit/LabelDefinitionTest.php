@@ -124,3 +124,26 @@ test('upc a is a supported barcode symbology', function () {
 
     expect($definition->toArray()['elements'][0]['symbology'])->toBe('upc_a');
 });
+
+test('barcode designer controls are validated', function (array $overrides) {
+    LabelDefinition::fromArray([
+        'elements' => [[
+            'id' => (string) Str::ulid(),
+            'type' => 'barcode',
+            'x' => 5,
+            'y' => 5,
+            'width' => 40,
+            'height' => 20,
+            'rotation' => 0,
+            'symbology' => 'upc_a',
+            'value' => '{{ upc }}',
+            ...$overrides,
+        ]],
+        'fields' => [],
+    ]);
+})->with([
+    'non-boolean text setting' => [['show_text' => 'yes']],
+    'negative module width' => [['module_width' => -1]],
+    'bar height exceeds element' => [['bar_height' => 21]],
+    'invalid qr correction' => [['error_correction' => 'maximum']],
+])->throws(InvalidArgumentException::class);
