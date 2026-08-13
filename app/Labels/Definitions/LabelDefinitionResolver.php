@@ -130,7 +130,7 @@ final class LabelDefinitionResolver
         $values = [];
 
         foreach ($system as $name => $value) {
-            if (! is_string($name) || preg_match('/\A[a-z][a-z0-9_]*\z/', $name) !== 1) {
+            if (preg_match('/\A[a-z][a-z0-9_]*\z/', $name) !== 1) {
                 throw new InvalidArgumentException('System value names must use snake_case.');
             }
 
