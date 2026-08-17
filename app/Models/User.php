@@ -26,6 +26,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $pin_hash
  * @property bool $requires_print_operator_pin
  * @property bool $is_admin
+ * @property int $executed_print_jobs_count
+ * @property int $submitted_print_jobs_count
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -118,5 +120,13 @@ class User extends Authenticatable implements PasskeyUser
     public function executedPrintJobs(): HasMany
     {
         return $this->hasMany(PrintJob::class, 'executed_by');
+    }
+
+    /**
+     * @return HasMany<PrintJob, $this>
+     */
+    public function submittedPrintJobs(): HasMany
+    {
+        return $this->hasMany(PrintJob::class, 'submitted_by');
     }
 }
