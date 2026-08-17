@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $description
  * @property string|null $sku
  * @property bool $is_active
+ * @property int $label_templates_count
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
