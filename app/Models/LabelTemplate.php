@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use LogicException;
 
 /**
  * @property int $id
@@ -19,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property string $slug
  * @property string|null $description
  * @property bool $is_active
+ * @property int $versions_count
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -27,6 +29,19 @@ class LabelTemplate extends Model
 {
     /** @use HasFactory<LabelTemplateFactory> */
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $template): void {
+            if (! $template->exists || ! $template->isDirty(['code', 'label_stock_id'])) {
+                return;
+            }
+
+            if ($template->versions()->exists()) {
+                throw new LogicException('A template ID and label stock cannot change after its first revision.');
+            }
+        });
+    }
 
     /**
      * Get the attributes that should be cast.

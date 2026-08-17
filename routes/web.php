@@ -15,6 +15,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::view('admin', 'admin.dashboard')->name('admin.dashboard');
         Route::livewire('admin/printers', 'pages::admin.printers')->name('admin.printers');
         Route::livewire('admin/label-stocks', 'pages::admin.label-stocks')->name('admin.label-stocks');
+        Route::livewire('admin/label-templates', 'pages::admin.label-templates')->name('admin.label-templates');
     });
     Route::post('label-template-versions/{labelTemplateVersion}/preview', LabelPreviewController::class)
         ->name('label-template-versions.preview');

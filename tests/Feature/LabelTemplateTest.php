@@ -103,6 +103,36 @@ test('different templates may use the same version number', function () {
     expect($firstVersion->label_template_id)->not->toBe($secondVersion->label_template_id);
 });
 
+test('template identity and stock are immutable after the first revision', function () {
+    $template = LabelTemplate::factory()->create();
+    LabelTemplateVersion::factory()->for($template)->create();
+
+    $template->code = 'NEW001';
+
+    expect(fn () => $template->save())->toThrow(
+        LogicException::class,
+        'A template ID and label stock cannot change after its first revision.',
+    );
+});
+
+test('revision definitions are immutable after creation', function () {
+    $version = LabelTemplateVersion::factory()->create();
+    $version->revision_code = '0826';
+
+    expect(fn () => $version->save())->toThrow(
+        LogicException::class,
+        'A label template revision definition is immutable.',
+    );
+});
+
+test('an immutable revision may be published', function () {
+    $version = LabelTemplateVersion::factory()->create();
+    $version->published_at = now();
+    $version->save();
+
+    expect($version->refresh()->published_at)->not->toBeNull();
+});
+
 test('a stock cannot be deleted while a template uses it', function () {
     $template = LabelTemplate::factory()->create();
 

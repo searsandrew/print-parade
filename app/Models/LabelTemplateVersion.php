@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use LogicException;
 
 /**
  * @property int $id
@@ -29,6 +30,22 @@ class LabelTemplateVersion extends Model
 {
     /** @use HasFactory<LabelTemplateVersionFactory> */
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::updating(function (self $version): void {
+            if ($version->isDirty([
+                'label_template_id',
+                'version',
+                'revision_code',
+                'schema_version',
+                'definition',
+                'created_by',
+            ])) {
+                throw new LogicException('A label template revision definition is immutable.');
+            }
+        });
+    }
 
     /**
      * Get the attributes that should be cast.

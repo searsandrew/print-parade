@@ -9,7 +9,7 @@
             @foreach ([
                 ['icon' => 'printer', 'title' => __('Bridges & printers'), 'description' => __('Configure print bridges and the printers connected to them.'), 'status' => __('Available'), 'href' => route('admin.printers')],
                 ['icon' => 'rectangle-stack', 'title' => __('Label stocks'), 'description' => __('Manage physical label dimensions and media sensing.'), 'status' => __('Available'), 'href' => route('admin.label-stocks')],
-                ['icon' => 'document-text', 'title' => __('Templates & revisions'), 'description' => __('Design labels and publish immutable template revisions.'), 'status' => __('Planned')],
+                ['icon' => 'document-text', 'title' => __('Templates & revisions'), 'description' => __('Create labels and publish immutable printer-neutral revisions.'), 'status' => __('Available'), 'href' => route('admin.label-templates')],
                 ['icon' => 'queue-list', 'title' => __('Print jobs'), 'description' => __('Inspect job history, status, attribution, and delivery failures.'), 'status' => __('Planned')],
                 ['icon' => 'users', 'title' => __('Users'), 'description' => __('Manage printing modes, operator PINs, and administrator access.'), 'status' => __('Planned')],
             ] as $area)
