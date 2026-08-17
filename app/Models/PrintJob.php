@@ -185,12 +185,23 @@ class PrintJob extends Model
 
     public function cancel(): void
     {
-        $this->assertStatus(PrintJobStatus::Pending);
+        if (! in_array($this->status, [PrintJobStatus::Pending, PrintJobStatus::Queued], true)) {
+            throw new LogicException("A {$this->status->value} print job cannot perform this transition.");
+        }
 
-        $this->forceFill([
-            'status' => PrintJobStatus::Cancelled,
-            'cancelled_at' => now(),
-        ])->save();
+        $updated = self::query()
+            ->whereKey($this->getKey())
+            ->whereIn('status', [PrintJobStatus::Pending->value, PrintJobStatus::Queued->value])
+            ->update([
+                'status' => PrintJobStatus::Cancelled->value,
+                'cancelled_at' => now(),
+            ]);
+
+        $this->refresh();
+
+        if ($updated !== 1) {
+            throw new LogicException('This print job can no longer be cancelled.');
+        }
     }
 
     /**

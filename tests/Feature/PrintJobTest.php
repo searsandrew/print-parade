@@ -76,6 +76,31 @@ test('a pending print job can be cancelled', function () {
         ->and($job->cancelled_at)->not->toBeNull();
 });
 
+test('a queued print job can be cancelled before a bridge claims it', function () {
+    $job = PrintJob::factory()->create();
+    $job->queue(User::factory()->create(), '^XA^XZ');
+
+    $job->cancel();
+
+    expect($job->status)->toBe(PrintJobStatus::Cancelled)
+        ->and($job->cancelled_at)->not->toBeNull();
+});
+
+test('a stale queued view cannot cancel a job after a bridge claims it', function () {
+    $job = PrintJob::factory()->create();
+    $job->queue(User::factory()->create(), '^XA^XZ');
+    $staleView = PrintJob::query()->findOrFail($job->id);
+
+    $job->claim($job->printer->printBridge);
+
+    expect(fn () => $staleView->cancel())->toThrow(
+        LogicException::class,
+        'This print job can no longer be cancelled.',
+    );
+
+    expect($staleView->status)->toBe(PrintJobStatus::Processing);
+});
+
 test('print job lifecycle rejects invalid transitions', function () {
     $user = User::factory()->create();
     $completedJob = PrintJob::factory()->create();
