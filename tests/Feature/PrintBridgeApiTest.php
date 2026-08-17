@@ -34,6 +34,7 @@ test('a bridge claims only jobs assigned to its printers', function () {
 
     $this->withToken($token)->postJson('/api/bridge/jobs/claim')
         ->assertOk()
+        ->assertJsonStructure(['claim_token', 'lease_expires_at'])
         ->assertJson([
             'job_id' => $assigned->id,
             'printer' => $assigned->printer->bridge_identifier,
@@ -48,6 +49,18 @@ test('a bridge claims only jobs assigned to its printers', function () {
         ->and($other->refresh()->status)->toBe(PrintJobStatus::Queued);
 });
 
+test('a bridge acknowledgement requires the matching claim token', function () {
+    [$bridge, $token] = bridgeWithToken();
+    $job = queuedBridgeJob($bridge);
+    $job->claim($bridge);
+
+    $this->withToken($token)->postJson("/api/bridge/jobs/{$job->id}/complete", [
+        'claim_token' => 'incorrect',
+    ])->assertNotFound();
+
+    expect($job->refresh()->status)->toBe(PrintJobStatus::Processing);
+});
+
 test('a bridge receives no content when it has no queued jobs', function () {
     [, $token] = bridgeWithToken();
 
@@ -58,13 +71,16 @@ test('the claiming bridge can complete or fail its jobs', function () {
     [$bridge, $token] = bridgeWithToken();
     $completed = queuedBridgeJob($bridge);
     $failed = queuedBridgeJob($bridge);
-    $completed->claim($bridge);
-    $failed->claim($bridge);
+    $completedToken = $completed->claim($bridge);
+    $failedToken = $failed->claim($bridge);
 
-    $this->withToken($token)->postJson("/api/bridge/jobs/{$completed->id}/complete")
+    $this->withToken($token)->postJson("/api/bridge/jobs/{$completed->id}/complete", [
+        'claim_token' => $completedToken,
+    ])
         ->assertOk()
         ->assertJson(['status' => 'completed']);
     $this->withToken($token)->postJson("/api/bridge/jobs/{$failed->id}/fail", [
+        'claim_token' => $failedToken,
         'message' => 'Windows spooler rejected the job.',
     ])->assertOk()->assertJson(['status' => 'failed']);
 
@@ -77,9 +93,11 @@ test('a different bridge cannot report a claimed job result', function () {
     [$bridge] = bridgeWithToken();
     [, $otherToken] = bridgeWithToken();
     $job = queuedBridgeJob($bridge);
-    $job->claim($bridge);
+    $claimToken = $job->claim($bridge);
 
-    $this->withToken($otherToken)->postJson("/api/bridge/jobs/{$job->id}/complete")
+    $this->withToken($otherToken)->postJson("/api/bridge/jobs/{$job->id}/complete", [
+        'claim_token' => $claimToken,
+    ])
         ->assertNotFound();
 
     expect($job->refresh()->status)->toBe(PrintJobStatus::Processing);

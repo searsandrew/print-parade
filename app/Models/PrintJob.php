@@ -5,11 +5,13 @@ namespace App\Models;
 use App\Labels\Enums\PrintJobStatus;
 use Database\Factories\PrintJobFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use LogicException;
 
 /**
@@ -23,8 +25,11 @@ use LogicException;
  * @property string|null $output_checksum
  * @property int|null $executed_by
  * @property int|null $claimed_by_bridge
+ * @property string|null $claim_token_hash
  * @property Carbon|null $queued_at
  * @property Carbon|null $claimed_at
+ * @property Carbon|null $lease_expires_at
+ * @property Carbon|null $delivery_uncertain_at
  * @property Carbon|null $started_at
  * @property Carbon|null $completed_at
  * @property Carbon|null $failed_at
@@ -34,6 +39,7 @@ use LogicException;
  * @property Carbon|null $updated_at
  */
 #[Fillable(['label_template_version_id', 'printer_id', 'input_values', 'quantity'])]
+#[Hidden(['claim_token_hash'])]
 class PrintJob extends Model
 {
     /** @use HasFactory<PrintJobFactory> */
@@ -47,6 +53,8 @@ class PrintJob extends Model
             'status' => PrintJobStatus::class,
             'queued_at' => 'immutable_datetime',
             'claimed_at' => 'immutable_datetime',
+            'lease_expires_at' => 'immutable_datetime',
+            'delivery_uncertain_at' => 'immutable_datetime',
             'started_at' => 'immutable_datetime',
             'completed_at' => 'immutable_datetime',
             'failed_at' => 'immutable_datetime',
@@ -91,7 +99,7 @@ class PrintJob extends Model
         }
     }
 
-    public function claim(PrintBridge $bridge): void
+    public function claim(PrintBridge $bridge): string
     {
         $this->assertStatus(PrintJobStatus::Queued);
 
@@ -106,14 +114,17 @@ class PrintJob extends Model
         }
 
         $claimedAt = now();
+        $claimToken = Str::random(64);
         $updated = self::query()
             ->whereKey($this->getKey())
             ->where('status', PrintJobStatus::Queued->value)
             ->update([
                 'status' => PrintJobStatus::Processing->value,
                 'claimed_by_bridge' => $bridge->id,
+                'claim_token_hash' => hash('sha256', $claimToken),
                 'claimed_at' => $claimedAt,
                 'started_at' => $claimedAt,
+                'lease_expires_at' => $claimedAt->clone()->addMinute(),
             ]);
 
         if ($updated !== 1) {
@@ -123,12 +134,14 @@ class PrintJob extends Model
         }
 
         $this->refresh();
+
+        return $claimToken;
     }
 
-    public function complete(PrintBridge $bridge): void
+    public function complete(PrintBridge $bridge, string $claimToken): void
     {
         $this->assertStatus(PrintJobStatus::Processing);
-        $this->assertClaimedBy($bridge);
+        $this->assertClaim($bridge, $claimToken);
 
         $this->forceFill([
             'status' => PrintJobStatus::Completed,
@@ -136,10 +149,17 @@ class PrintJob extends Model
         ])->save();
     }
 
-    public function fail(PrintBridge $bridge, string $message): void
+    public function matchesClaim(PrintBridge $bridge, string $claimToken): bool
+    {
+        return $this->claimed_by_bridge === $bridge->id
+            && $this->claim_token_hash !== null
+            && hash_equals($this->claim_token_hash, hash('sha256', $claimToken));
+    }
+
+    public function fail(PrintBridge $bridge, string $claimToken, string $message): void
     {
         $this->assertStatus(PrintJobStatus::Processing);
-        $this->assertClaimedBy($bridge);
+        $this->assertClaim($bridge, $claimToken);
         $this->assertFailureMessage($message);
 
         $this->forceFill([
@@ -218,10 +238,10 @@ class PrintJob extends Model
         }
     }
 
-    private function assertClaimedBy(PrintBridge $bridge): void
+    private function assertClaim(PrintBridge $bridge, string $claimToken): void
     {
-        if ($this->claimed_by_bridge !== $bridge->id) {
-            throw new LogicException('This print job was claimed by a different bridge.');
+        if (! $this->matchesClaim($bridge, $claimToken)) {
+            throw new LogicException('The print job acknowledgement is invalid.');
         }
     }
 }

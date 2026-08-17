@@ -19,14 +19,18 @@ class PrintBridgeController extends Controller
 
     public function claim(Request $request, QueuedPrintJobClaimer $claimer): JsonResponse|Response
     {
-        $job = $claimer->claimNext($this->bridge($request));
+        $claim = $claimer->claimNext($this->bridge($request));
 
-        if ($job === null) {
+        if ($claim === null) {
             return response()->noContent();
         }
 
+        $job = $claim->job;
+
         return response()->json([
             'job_id' => $job->id,
+            'claim_token' => $claim->claimToken,
+            'lease_expires_at' => $job->lease_expires_at?->toIso8601String(),
             'printer' => $job->printer->bridge_identifier,
             'language' => $job->printer->language->value,
             'quantity' => $job->quantity,
@@ -39,7 +43,9 @@ class PrintBridgeController extends Controller
     {
         $bridge = $this->bridge($request);
         abort_unless($printJob->claimed_by_bridge === $bridge->id, 404);
-        $printJob->complete($bridge);
+        $validated = $request->validate(['claim_token' => ['required', 'string']]);
+        abort_unless($printJob->matchesClaim($bridge, $validated['claim_token']), 404);
+        $printJob->complete($bridge, $validated['claim_token']);
 
         return response()->json(['status' => 'completed']);
     }
@@ -48,8 +54,12 @@ class PrintBridgeController extends Controller
     {
         $bridge = $this->bridge($request);
         abort_unless($printJob->claimed_by_bridge === $bridge->id, 404);
-        $validated = $request->validate(['message' => ['required', 'string', 'max:2000']]);
-        $printJob->fail($bridge, $validated['message']);
+        $validated = $request->validate([
+            'claim_token' => ['required', 'string'],
+            'message' => ['required', 'string', 'max:2000'],
+        ]);
+        abort_unless($printJob->matchesClaim($bridge, $validated['claim_token']), 404);
+        $printJob->fail($bridge, $validated['claim_token'], $validated['message']);
 
         return response()->json(['status' => 'failed']);
     }

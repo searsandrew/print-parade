@@ -9,9 +9,18 @@ use Illuminate\Support\Facades\DB;
 
 final class QueuedPrintJobClaimer
 {
-    public function claimNext(PrintBridge $bridge): ?PrintJob
+    public function claimNext(PrintBridge $bridge): ?ClaimedPrintJob
     {
-        return DB::transaction(function () use ($bridge): ?PrintJob {
+        return DB::transaction(function () use ($bridge): ?ClaimedPrintJob {
+            PrintJob::query()
+                ->where('status', PrintJobStatus::Processing)
+                ->where('lease_expires_at', '<=', now())
+                ->whereHas('printer', fn ($query) => $query->where('print_bridge_id', $bridge->id))
+                ->update([
+                    'status' => PrintJobStatus::DeliveryUncertain->value,
+                    'delivery_uncertain_at' => now(),
+                ]);
+
             $job = PrintJob::query()
                 ->where('status', PrintJobStatus::Queued)
                 ->whereHas('printer', fn ($query) => $query
@@ -22,9 +31,11 @@ final class QueuedPrintJobClaimer
                 ->lockForUpdate()
                 ->first();
 
-            $job?->claim($bridge);
+            if ($job === null) {
+                return null;
+            }
 
-            return $job;
+            return new ClaimedPrintJob($job, $job->claim($bridge));
         });
     }
 }
