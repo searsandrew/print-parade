@@ -25,7 +25,8 @@ test('a print job preserves its template version inputs and quantity', function 
             'upc' => '036000291452',
         ])
         ->and($job->quantity)->toBe(25)
-        ->and($job->labelTemplateVersion->is($version))->toBeTrue();
+        ->and($job->labelTemplateVersion->is($version))->toBeTrue()
+        ->and($job->printer)->not->toBeNull();
 });
 
 test('a pending print job can be executed and completed', function () {
@@ -100,4 +101,10 @@ test('a template version cannot be deleted after it is used by a print job', fun
     $job = PrintJob::factory()->create();
 
     expect(fn () => $job->labelTemplateVersion->delete())->toThrow(QueryException::class);
+});
+
+test('a printer cannot be deleted after it is used by a print job', function () {
+    $job = PrintJob::factory()->create();
+
+    expect(fn () => $job->printer->delete())->toThrow(QueryException::class);
 });

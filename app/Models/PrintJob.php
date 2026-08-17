@@ -15,6 +15,7 @@ use LogicException;
 /**
  * @property string $id
  * @property int $label_template_version_id
+ * @property int $printer_id
  * @property array<string, mixed> $input_values
  * @property int $quantity
  * @property PrintJobStatus $status
@@ -27,7 +28,7 @@ use LogicException;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['label_template_version_id', 'input_values', 'quantity'])]
+#[Fillable(['label_template_version_id', 'printer_id', 'input_values', 'quantity'])]
 class PrintJob extends Model
 {
     /** @use HasFactory<PrintJobFactory> */
@@ -122,6 +123,14 @@ class PrintJob extends Model
     public function executor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'executed_by');
+    }
+
+    /**
+     * @return BelongsTo<Printer, $this>
+     */
+    public function printer(): BelongsTo
+    {
+        return $this->belongsTo(Printer::class);
     }
 
     private function assertStatus(PrintJobStatus $expected): void

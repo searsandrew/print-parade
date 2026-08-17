@@ -3,11 +3,13 @@
 namespace App\Labels\Printing;
 
 use App\Labels\Definitions\LabelDefinitionResolver;
+use App\Labels\Enums\PrinterLanguage;
 use App\Labels\Rendering\LabelRenderContext;
 use App\Labels\Rendering\ZplRenderer;
 use App\Models\PrintJob;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use LogicException;
 use Throwable;
 
 final readonly class PrintJobExecutor
@@ -24,17 +26,27 @@ final readonly class PrintJobExecutor
      *
      * @throws AuthorizationException
      */
-    public function prepare(PrintJob $job, User $user, string $pin, int $dotsPerInch): PreparedPrintJob
+    public function prepare(PrintJob $job, User $user, string $pin): PreparedPrintJob
     {
         if (! $user->verifiesPin($pin)) {
             throw new AuthorizationException('The selected user could not be authorized to print.');
         }
 
-        $job->loadMissing('labelTemplateVersion.labelTemplate.labelStock');
+        $job->loadMissing(['labelTemplateVersion.labelTemplate.labelStock', 'printer']);
+
+        if (! $job->printer->is_active) {
+            throw new LogicException('The selected printer is inactive.');
+        }
+
         $job->start($user);
 
         try {
             $version = $job->labelTemplateVersion;
+
+            if ($job->printer->language !== PrinterLanguage::Zpl) {
+                throw new LogicException("Printing in {$job->printer->language->value} is not implemented.");
+            }
+
             $jobIdentifier = sprintf(
                 '%s (%s) | %s',
                 $version->labelTemplate->code,
@@ -48,12 +60,14 @@ final readonly class PrintJobExecutor
             );
             $zpl = $this->renderer->render(
                 $resolvedDefinition,
-                LabelRenderContext::fromStock($version->labelTemplate->labelStock, $dotsPerInch),
+                LabelRenderContext::fromStock($version->labelTemplate->labelStock, $job->printer->dpi),
             );
 
             return new PreparedPrintJob(
                 jobId: $job->id,
                 jobIdentifier: $jobIdentifier,
+                printerId: $job->printer->id,
+                bridgeIdentifier: $job->printer->bridge_identifier,
                 quantity: $job->quantity,
                 zpl: $zpl,
             );
