@@ -34,7 +34,15 @@ class UserFactory extends Factory
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
             'requires_print_operator_pin' => false,
+            'is_admin' => false,
         ];
+    }
+
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'is_admin' => true,
+        ]);
     }
 
     public function sharedPrintStation(): static

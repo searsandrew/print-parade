@@ -25,6 +25,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string $password
  * @property string|null $pin_hash
  * @property bool $requires_print_operator_pin
+ * @property bool $is_admin
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -50,6 +51,7 @@ class User extends Authenticatable implements PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'requires_print_operator_pin' => 'boolean',
+            'is_admin' => 'boolean',
         ];
     }
 
