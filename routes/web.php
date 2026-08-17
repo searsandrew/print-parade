@@ -11,7 +11,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('print/catalog', PrintCatalogController::class)->name('print.catalog')->middleware('throttle:60,1');
     Route::post('print/jobs', PrintJobSubmissionController::class)->name('print.jobs.store')->middleware('throttle:print-submissions');
     Route::view('dashboard', 'dashboard')->name('dashboard');
-    Route::view('admin', 'admin.dashboard')->middleware('admin')->name('admin.dashboard');
+    Route::middleware('admin')->group(function (): void {
+        Route::view('admin', 'admin.dashboard')->name('admin.dashboard');
+        Route::livewire('admin/printers', 'pages::admin.printers')->name('admin.printers');
+    });
     Route::post('label-template-versions/{labelTemplateVersion}/preview', LabelPreviewController::class)
         ->name('label-template-versions.preview');
 });
