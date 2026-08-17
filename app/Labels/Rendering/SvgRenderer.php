@@ -68,6 +68,7 @@ final readonly class SvgRenderer implements LabelRenderer
             LabelTextAlignment::Center => (float) $element['width'] / 2,
             LabelTextAlignment::Right => (float) $element['width'],
         };
+        /** @noinspection HtmlWrongAttributeValue */
         $markup = sprintf(
             '<text x="%s" y="%s" font-family="%s" font-size="%s" font-weight="%s" text-anchor="%s" dominant-baseline="hanging">%s</text>',
             self::number($x),
@@ -161,6 +162,7 @@ final readonly class SvgRenderer implements LabelRenderer
             }
         }
 
+        /** @noinspection HtmlUnknownAttribute */
         $image = sprintf(
             '<image x="%s" y="%s" width="%s" height="%s" preserveAspectRatio="none" href="%s" data-barcode-symbology="%s"/>%s',
             self::number($x),
