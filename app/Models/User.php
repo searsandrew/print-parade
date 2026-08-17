@@ -107,4 +107,12 @@ class User extends Authenticatable implements PasskeyUser
     {
         return $this->hasMany(LabelTemplateVersion::class);
     }
+
+    /**
+     * @return HasMany<PrintJob, $this>
+     */
+    public function executedPrintJobs(): HasMany
+    {
+        return $this->hasMany(PrintJob::class, 'executed_by');
+    }
 }
