@@ -1,17 +1,15 @@
 <?php
 
 use App\Models\User;
-use Illuminate\Database\UniqueConstraintViolationException;
 
-test('a user can be found by their print job pin', function () {
+test('a selected user can verify their print job pin', function () {
     $user = User::factory()->create();
 
     $user->assignPin('4826');
     $user->save();
 
-    expect(User::findByPin('4826'))->toBeInstanceOf(User::class)
-        ->id->toBe($user->id)
-        ->and(User::findByPin('1111'))->toBeNull();
+    expect($user->verifiesPin('4826'))->toBeTrue()
+        ->and($user->verifiesPin('1111'))->toBeFalse();
 });
 
 test('a print job pin is never stored or serialized in plain text', function () {
@@ -36,16 +34,18 @@ test('a user print job pin can be removed', function () {
     $user->removePin();
     $user->save();
 
-    expect(User::findByPin('4826'))->toBeNull();
+    expect($user->verifiesPin('4826'))->toBeFalse();
 });
 
-test('print job pins must be unique', function () {
+test('different users may choose the same print job pin', function () {
     $firstUser = User::factory()->create();
     $firstUser->assignPin('4826');
     $firstUser->save();
 
     $secondUser = User::factory()->create();
     $secondUser->assignPin('4826');
+    $secondUser->save();
 
-    expect(fn () => $secondUser->save())->toThrow(UniqueConstraintViolationException::class);
+    expect($firstUser->verifiesPin('4826'))->toBeTrue()
+        ->and($secondUser->verifiesPin('4826'))->toBeTrue();
 });

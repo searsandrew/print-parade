@@ -84,15 +84,15 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
-     * Find the user identified by a print-job PIN.
+     * Verify this user's print-job PIN.
      */
-    public static function findByPin(string $pin): ?self
+    public function verifiesPin(string $pin): bool
     {
-        if (preg_match('/\A\d{4,8}\z/', $pin) !== 1) {
-            return null;
+        if ($this->pin_hash === null || preg_match('/\A\d{4,8}\z/', $pin) !== 1) {
+            return false;
         }
 
-        return self::query()->where('pin_hash', self::hashPin($pin))->first();
+        return hash_equals($this->pin_hash, self::hashPin($pin));
     }
 
     private static function hashPin(string $pin): string
