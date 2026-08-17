@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Labels\Enums\PrinterLanguage;
+use App\Models\PrintBridge;
 use App\Models\Printer;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -19,6 +20,7 @@ class PrinterFactory extends Factory
     public function definition(): array
     {
         return [
+            'print_bridge_id' => PrintBridge::factory(),
             'name' => fake()->randomElement(['Packing Zebra', 'Shipping Zebra', 'Autobagger']),
             'location' => fake()->randomElement(['Packing', 'Shipping', 'Production']),
             'language' => PrinterLanguage::Zpl,

@@ -34,6 +34,7 @@ test('a pending print job can be queued claimed and completed', function () {
     $job = PrintJob::factory()->create();
 
     $job->queue($user, '^XA^FDTEST^FS^XZ');
+    $bridge = $job->printer->printBridge;
 
     expect($job->status)->toBe(PrintJobStatus::Queued)
         ->and($job->executor->is($user))->toBeTrue()
@@ -41,13 +42,13 @@ test('a pending print job can be queued claimed and completed', function () {
         ->and($job->output_payload)->toBe('^XA^FDTEST^FS^XZ')
         ->and($job->output_checksum)->toBe(hash('sha256', '^XA^FDTEST^FS^XZ'));
 
-    $job->claim();
+    $job->claim($bridge);
 
     expect($job->status)->toBe(PrintJobStatus::Processing)
         ->and($job->claimed_at)->not->toBeNull()
         ->and($job->started_at)->not->toBeNull();
 
-    $job->complete();
+    $job->complete($bridge);
 
     expect($job->status)->toBe(PrintJobStatus::Completed)
         ->and($job->completed_at)->not->toBeNull();
@@ -56,9 +57,10 @@ test('a pending print job can be queued claimed and completed', function () {
 test('a processing print job can fail with an audit message', function () {
     $job = PrintJob::factory()->create();
     $job->queue(User::factory()->create(), '^XA^XZ');
-    $job->claim();
+    $bridge = $job->printer->printBridge;
+    $job->claim($bridge);
 
-    $job->fail('Printer bridge did not respond.');
+    $job->fail($bridge, 'Printer bridge did not respond.');
 
     expect($job->status)->toBe(PrintJobStatus::Failed)
         ->and($job->failed_at)->not->toBeNull()
@@ -78,24 +80,26 @@ test('print job lifecycle rejects invalid transitions', function () {
     $user = User::factory()->create();
     $completedJob = PrintJob::factory()->create();
     $completedJob->queue($user, '^XA^XZ');
-    $completedJob->claim();
-    $completedJob->complete();
+    $bridge = $completedJob->printer->printBridge;
+    $completedJob->claim($bridge);
+    $completedJob->complete($bridge);
 
     expect(fn () => $completedJob->queue($user, '^XA^XZ'))->toThrow(LogicException::class)
         ->and(fn () => $completedJob->cancel())->toThrow(LogicException::class);
 
     $pendingJob = PrintJob::factory()->create();
 
-    expect(fn () => $pendingJob->complete())->toThrow(LogicException::class)
-        ->and(fn () => $pendingJob->fail('No printer.'))->toThrow(LogicException::class);
+    expect(fn () => $pendingJob->complete($pendingJob->printer->printBridge))->toThrow(LogicException::class)
+        ->and(fn () => $pendingJob->fail($pendingJob->printer->printBridge, 'No printer.'))->toThrow(LogicException::class);
 });
 
 test('a failed print job requires a failure message', function () {
     $job = PrintJob::factory()->create();
     $job->queue(User::factory()->create(), '^XA^XZ');
-    $job->claim();
+    $bridge = $job->printer->printBridge;
+    $job->claim($bridge);
 
-    expect(fn () => $job->fail('  '))->toThrow(
+    expect(fn () => $job->fail($bridge, '  '))->toThrow(
         LogicException::class,
         'A failed print job must include a failure message.',
     );

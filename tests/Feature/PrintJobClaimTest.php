@@ -11,12 +11,13 @@ test('only one bridge worker can claim a queued print job', function () {
     $firstWorkerView = $job->fresh();
     $secondWorkerView = $job->fresh();
 
-    $firstWorkerView->claim();
+    $bridge = $job->printer->printBridge;
+    $firstWorkerView->claim($bridge);
 
     expect($firstWorkerView->status)->toBe(PrintJobStatus::Processing)
         ->and($firstWorkerView->claimed_at)->not->toBeNull();
 
-    expect(fn () => $secondWorkerView->claim())
+    expect(fn () => $secondWorkerView->claim($bridge))
         ->toThrow(LogicException::class, 'This print job has already been claimed.');
 
     expect($secondWorkerView->status)->toBe(PrintJobStatus::Processing);
@@ -25,7 +26,7 @@ test('only one bridge worker can claim a queued print job', function () {
 test('a pending job cannot be claimed before it is authorized and rendered', function () {
     $job = PrintJob::factory()->create();
 
-    expect(fn () => $job->claim())->toThrow(LogicException::class);
+    expect(fn () => $job->claim($job->printer->printBridge))->toThrow(LogicException::class);
 });
 
 test('a queued job with a changed payload cannot be claimed', function () {
@@ -37,7 +38,7 @@ test('a queued job with a changed payload cannot be claimed', function () {
     ]);
     $job->refresh();
 
-    expect(fn () => $job->claim())->toThrow(
+    expect(fn () => $job->claim($job->printer->printBridge))->toThrow(
         LogicException::class,
         'The queued print payload failed its integrity check.',
     );

@@ -7,11 +7,13 @@ use Database\Factories\PrinterFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use LogicException;
 
 /**
  * @property int $id
+ * @property int $print_bridge_id
  * @property string $name
  * @property string|null $location
  * @property PrinterLanguage $language
@@ -19,7 +21,7 @@ use LogicException;
  * @property string $bridge_identifier
  * @property bool $is_active
  */
-#[Fillable(['name', 'location', 'language', 'dpi', 'bridge_identifier', 'is_active'])]
+#[Fillable(['print_bridge_id', 'name', 'location', 'language', 'dpi', 'bridge_identifier', 'is_active'])]
 class Printer extends Model
 {
     /** @use HasFactory<PrinterFactory> */
@@ -49,5 +51,11 @@ class Printer extends Model
     public function printJobs(): HasMany
     {
         return $this->hasMany(PrintJob::class);
+    }
+
+    /** @return BelongsTo<PrintBridge, $this> */
+    public function printBridge(): BelongsTo
+    {
+        return $this->belongsTo(PrintBridge::class);
     }
 }

@@ -22,6 +22,7 @@ use LogicException;
  * @property string|null $output_payload
  * @property string|null $output_checksum
  * @property int|null $executed_by
+ * @property int|null $claimed_by_bridge
  * @property Carbon|null $queued_at
  * @property Carbon|null $claimed_at
  * @property Carbon|null $started_at
@@ -90,9 +91,13 @@ class PrintJob extends Model
         }
     }
 
-    public function claim(): void
+    public function claim(PrintBridge $bridge): void
     {
         $this->assertStatus(PrintJobStatus::Queued);
+
+        if ($this->printer->print_bridge_id !== $bridge->id) {
+            throw new LogicException('This print job is assigned to a different bridge.');
+        }
 
         if ($this->output_payload === null
             || $this->output_checksum === null
@@ -106,6 +111,7 @@ class PrintJob extends Model
             ->where('status', PrintJobStatus::Queued->value)
             ->update([
                 'status' => PrintJobStatus::Processing->value,
+                'claimed_by_bridge' => $bridge->id,
                 'claimed_at' => $claimedAt,
                 'started_at' => $claimedAt,
             ]);
@@ -119,9 +125,10 @@ class PrintJob extends Model
         $this->refresh();
     }
 
-    public function complete(): void
+    public function complete(PrintBridge $bridge): void
     {
         $this->assertStatus(PrintJobStatus::Processing);
+        $this->assertClaimedBy($bridge);
 
         $this->forceFill([
             'status' => PrintJobStatus::Completed,
@@ -129,9 +136,10 @@ class PrintJob extends Model
         ])->save();
     }
 
-    public function fail(string $message): void
+    public function fail(PrintBridge $bridge, string $message): void
     {
         $this->assertStatus(PrintJobStatus::Processing);
+        $this->assertClaimedBy($bridge);
         $this->assertFailureMessage($message);
 
         $this->forceFill([
@@ -188,6 +196,12 @@ class PrintJob extends Model
         return $this->belongsTo(Printer::class);
     }
 
+    /** @return BelongsTo<PrintBridge, $this> */
+    public function claimingBridge(): BelongsTo
+    {
+        return $this->belongsTo(PrintBridge::class, 'claimed_by_bridge');
+    }
+
     private function assertStatus(PrintJobStatus $expected): void
     {
         if ($this->status !== $expected) {
@@ -201,6 +215,13 @@ class PrintJob extends Model
     {
         if (trim($message) === '') {
             throw new LogicException('A failed print job must include a failure message.');
+        }
+    }
+
+    private function assertClaimedBy(PrintBridge $bridge): void
+    {
+        if ($this->claimed_by_bridge !== $bridge->id) {
+            throw new LogicException('This print job was claimed by a different bridge.');
         }
     }
 }
