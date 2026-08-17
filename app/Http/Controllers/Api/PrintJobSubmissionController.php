@@ -15,16 +15,22 @@ use LogicException;
 
 class PrintJobSubmissionController extends Controller
 {
-    public function __invoke(SubmitPrintJobRequest $request, PrintJobSubmitter $submitter): JsonResponse
+    public function __invoke(SubmitPrintJobRequest $request, PrintJobSubmitter $printJobSubmitter): JsonResponse
     {
         $validated = $request->validated();
+        /** @var User $submitter */
+        $authenticatedUser = $request->user();
+        $operator = isset($validated['user_id'])
+            ? User::query()->findOrFail($validated['user_id'])
+            : null;
 
         try {
-            $job = $submitter->submit(
+            $job = $printJobSubmitter->submit(
                 LabelTemplate::query()->findOrFail($validated['label_template_id']),
                 Printer::query()->findOrFail($validated['printer_id']),
-                User::query()->findOrFail($validated['user_id']),
-                $validated['pin'],
+                $authenticatedUser,
+                $operator,
+                $validated['pin'] ?? null,
                 $validated['quantity'],
                 $validated['values'],
             );

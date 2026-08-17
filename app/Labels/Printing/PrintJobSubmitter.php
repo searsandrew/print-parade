@@ -14,10 +14,16 @@ final readonly class PrintJobSubmitter
     public function __construct(private PrintJobExecutor $executor) {}
 
     /** @param array<string, mixed> $values */
-    public function submit(LabelTemplate $template, Printer $printer, User $user, string $pin, int $quantity, array $values): PrintJob
+    public function submit(LabelTemplate $template, Printer $printer, User $submitter, ?User $selectedOperator, ?string $pin, int $quantity, array $values): PrintJob
     {
-        if (! $user->verifiesPin($pin)) {
-            throw new AuthorizationException('The selected user could not be authorized to print.');
+        $operator = $submitter;
+
+        if ($submitter->requires_print_operator_pin) {
+            if ($selectedOperator === null || $pin === null || ! $selectedOperator->verifiesPin($pin)) {
+                throw new AuthorizationException('The selected user could not be authorized to print.');
+            }
+
+            $operator = $selectedOperator;
         }
 
         $template->loadMissing(['labelStock', 'publishedVersion']);
@@ -37,11 +43,12 @@ final readonly class PrintJobSubmitter
         $job = PrintJob::query()->create([
             'label_template_version_id' => $template->publishedVersion->id,
             'printer_id' => $printer->id,
+            'submitted_by' => $submitter->id,
             'input_values' => $values,
             'quantity' => $quantity,
         ]);
 
-        $this->executor->prepare($job, $user, $pin);
+        $this->executor->prepareAuthorized($job, $operator);
 
         return $job->refresh();
     }

@@ -16,6 +16,8 @@ class PrintCatalogController extends Controller
 {
     public function __invoke(Request $request): JsonResponse
     {
+        /** @var User $authenticatedUser */
+        $authenticatedUser = $request->user();
         $templates = LabelTemplate::query()
             ->where('is_active', true)
             ->whereHas('labelStock', fn ($query) => $query->where('is_active', true))
@@ -29,15 +31,21 @@ class PrintCatalogController extends Controller
             ->with('printBridge')
             ->orderBy('name')
             ->get();
-        $operators = User::query()
-            ->whereNotNull('pin_hash')
-            ->orderBy('name')
-            ->get();
+        $operators = $authenticatedUser->requires_print_operator_pin
+            ? User::query()->whereNotNull('pin_hash')->orderBy('name')->get()
+            : collect();
 
         return response()->json([
             'templates' => $templates->map(fn (LabelTemplate $template): array => (new LabelTemplateCatalogResource($template))->resolve($request)),
             'printers' => $printers->map(fn (Printer $printer): array => (new PrinterCatalogResource($printer))->resolve($request)),
             'operators' => $operators->map(fn (User $user): array => (new PrintOperatorResource($user))->resolve($request)),
+            'authorization' => [
+                'requires_operator_pin' => $authenticatedUser->requires_print_operator_pin,
+                'authenticated_user' => [
+                    'id' => $authenticatedUser->id,
+                    'name' => $authenticatedUser->name,
+                ],
+            ],
         ]);
     }
 }

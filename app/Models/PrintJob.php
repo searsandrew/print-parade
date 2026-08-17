@@ -18,6 +18,7 @@ use LogicException;
  * @property string $id
  * @property int $label_template_version_id
  * @property int $printer_id
+ * @property int|null $submitted_by
  * @property array<string, mixed> $input_values
  * @property int $quantity
  * @property PrintJobStatus $status
@@ -38,7 +39,7 @@ use LogicException;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['label_template_version_id', 'printer_id', 'input_values', 'quantity'])]
+#[Fillable(['label_template_version_id', 'printer_id', 'submitted_by', 'input_values', 'quantity'])]
 #[Hidden(['claim_token_hash'])]
 class PrintJob extends Model
 {
@@ -206,6 +207,12 @@ class PrintJob extends Model
     public function executor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'executed_by');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function submitter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by');
     }
 
     /**

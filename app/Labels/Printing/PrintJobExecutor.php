@@ -31,6 +31,11 @@ final readonly class PrintJobExecutor
             throw new AuthorizationException('The selected user could not be authorized to print.');
         }
 
+        return $this->prepareAuthorized($job, $user);
+    }
+
+    public function prepareAuthorized(PrintJob $job, User $user): PreparedPrintJob
+    {
         $job->loadMissing(['labelTemplateVersion.labelTemplate.labelStock', 'printer']);
 
         if (! $job->printer->is_active) {

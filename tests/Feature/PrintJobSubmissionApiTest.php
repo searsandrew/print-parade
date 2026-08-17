@@ -10,11 +10,13 @@ use App\Models\PrintJob;
 use App\Models\User;
 
 test('a selected user can authorize and queue a print job', function () {
+    $submitter = User::factory()->sharedPrintStation()->create();
+    $this->actingAs($submitter);
     [$template, $publishedVersion] = publishedSubmissionTemplate();
     $printer = Printer::factory()->create(['dpi' => 203]);
     $user = submissionUser('4826');
 
-    $response = $this->postJson('/api/print-jobs', submissionPayload($template, $printer, $user));
+    $response = $this->postJson('/print/jobs', submissionPayload($template, $printer, $user));
 
     $response->assertCreated()
         ->assertJson([
@@ -28,6 +30,7 @@ test('a selected user can authorize and queue a print job', function () {
     expect($job->status)->toBe(PrintJobStatus::Queued)
         ->and($job->label_template_version_id)->toBe($publishedVersion->id)
         ->and($job->printer_id)->toBe($printer->id)
+        ->and($job->submitted_by)->toBe($submitter->id)
         ->and($job->executed_by)->toBe($user->id)
         ->and($job->quantity)->toBe(10)
         ->and($job->output_payload)->toStartWith('^XA')
@@ -48,32 +51,36 @@ test('submission always uses the latest published template version', function ()
     ]);
     $printer = Printer::factory()->create();
     $user = submissionUser('4826');
+    $this->actingAs($user);
 
-    $response = $this->postJson('/api/print-jobs', submissionPayload($template, $printer, $user));
+    $response = $this->postJson('/print/jobs', submissionPayload($template, $printer, $user));
 
     expect(PrintJob::query()->findOrFail($response->json('job_id'))->labelTemplateVersion->version)->toBe(2);
 });
 
 test('an incorrect pin does not create a print job', function () {
+    $this->actingAs(User::factory()->sharedPrintStation()->create());
     [$template] = publishedSubmissionTemplate();
     $printer = Printer::factory()->create();
     $user = submissionUser('4826');
     $payload = submissionPayload($template, $printer, $user);
     $payload['pin'] = '1111';
 
-    $this->postJson('/api/print-jobs', $payload)->assertForbidden();
+    $this->postJson('/print/jobs', $payload)->assertForbidden();
 
     expect(PrintJob::query()->count())->toBe(0);
 });
 
 test('invalid label values return validation details and retain the failed audit', function () {
+    $submitter = User::factory()->sharedPrintStation()->create();
+    $this->actingAs($submitter);
     [$template] = publishedSubmissionTemplate();
     $printer = Printer::factory()->create();
     $user = submissionUser('4826');
     $payload = submissionPayload($template, $printer, $user);
     $payload['values'] = ['country_of_origin' => 'USA'];
 
-    $this->postJson('/api/print-jobs', $payload)
+    $this->postJson('/print/jobs', $payload)
         ->assertUnprocessable()
         ->assertJsonValidationErrors('print_job');
 
@@ -85,6 +92,7 @@ test('invalid label values return validation details and retain the failed audit
 });
 
 test('inactive templates and printers cannot receive submissions', function (string $inactive) {
+    $this->actingAs(User::factory()->create());
     [$template] = publishedSubmissionTemplate();
     $printer = Printer::factory()->create();
     $user = submissionUser('4826');
@@ -95,7 +103,7 @@ test('inactive templates and printers cannot receive submissions', function (str
         $printer->update(['is_active' => false]);
     }
 
-    $this->postJson('/api/print-jobs', submissionPayload($template, $printer, $user))
+    $this->postJson('/print/jobs', submissionPayload($template, $printer, $user))
         ->assertUnprocessable()
         ->assertJsonValidationErrors('print_job');
 
@@ -103,14 +111,14 @@ test('inactive templates and printers cannot receive submissions', function (str
 })->with(['template', 'printer']);
 
 test('submission input is validated before authorization', function () {
-    $this->postJson('/api/print-jobs', [
+    $this->actingAs(User::factory()->create());
+    $this->postJson('/print/jobs', [
         'pin' => 'abc',
         'quantity' => 0,
         'values' => 'invalid',
     ])->assertUnprocessable()->assertJsonValidationErrors([
         'label_template_id',
         'printer_id',
-        'user_id',
         'pin',
         'quantity',
         'values',
@@ -118,6 +126,7 @@ test('submission input is validated before authorization', function () {
 });
 
 test('pin attempts are rate limited per selected user and client', function () {
+    $this->actingAs(User::factory()->sharedPrintStation()->create());
     [$template] = publishedSubmissionTemplate();
     $printer = Printer::factory()->create();
     $user = submissionUser('4826');
@@ -125,10 +134,29 @@ test('pin attempts are rate limited per selected user and client', function () {
     $payload['pin'] = '1111';
 
     foreach (range(1, 5) as $attempt) {
-        $this->postJson('/api/print-jobs', $payload)->assertForbidden();
+        $this->postJson('/print/jobs', $payload)->assertForbidden();
     }
 
-    $this->postJson('/api/print-jobs', $payload)->assertTooManyRequests();
+    $this->postJson('/print/jobs', $payload)->assertTooManyRequests();
+});
+
+test('a personal account prints without selecting an operator or entering a pin', function () {
+    [$template] = publishedSubmissionTemplate();
+    $printer = Printer::factory()->create();
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    $payload = submissionPayload($template, $printer, $user);
+    unset($payload['user_id'], $payload['pin']);
+
+    $response = $this->postJson('/print/jobs', $payload)->assertCreated();
+    $job = PrintJob::query()->findOrFail($response->json('job_id'));
+
+    expect($job->submitted_by)->toBe($user->id)
+        ->and($job->executed_by)->toBe($user->id);
+});
+
+test('guests cannot submit print jobs', function () {
+    $this->postJson('/print/jobs', [])->assertUnauthorized();
 });
 
 /** @return array{LabelTemplate, LabelTemplateVersion} */

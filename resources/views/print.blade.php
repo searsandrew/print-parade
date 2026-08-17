@@ -70,9 +70,9 @@
                     </div>
                     <div>
                         <label for="quantity" class="mb-2 block text-base font-semibold">Quantity</label>
-                        <input id="quantity" type="number" inputmode="numeric" min="1" max="10000" x-model="quantity" required class="min-h-14 w-full rounded-xl border-zinc-300 px-4 text-lg shadow-sm focus:border-zinc-900 focus:ring-zinc-900">
+                        <flux:input id="quantity" type="number" inputmode="numeric" min="1" max="10000" x-model="quantity" required class:input="min-h-14 text-lg" />
                     </div>
-                    <div>
+                    <div x-show="requiresOperatorPin">
                         <label for="operator" class="mb-2 block text-base font-semibold">Your name</label>
                         <select id="operator" x-model="userId" required class="min-h-14 w-full rounded-xl border-zinc-300 bg-white px-4 text-lg shadow-sm focus:border-zinc-900 focus:ring-zinc-900">
                             <option value="">Select your name</option>
@@ -81,9 +81,14 @@
                             </template>
                         </select>
                     </div>
-                    <div>
+                    <div x-show="requiresOperatorPin">
                         <label for="pin" class="mb-2 block text-base font-semibold">PIN</label>
-                        <input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" x-model="pin" required class="min-h-14 w-full rounded-xl border-zinc-300 px-4 text-center text-2xl tracking-[0.35em] shadow-sm focus:border-zinc-900 focus:ring-zinc-900">
+                        <flux:input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" x-model="pin" x-bind:required="requiresOperatorPin" class:input="min-h-14 text-center text-2xl tracking-[0.35em]" />
+                    </div>
+                    <div x-show="!requiresOperatorPin" class="sm:col-span-2">
+                        <flux:callout icon="user-circle" color="zinc">
+                            Printing as <strong x-text="catalog.authorization.authenticated_user?.name"></strong>. Your login will be recorded with this job.
+                        </flux:callout>
                     </div>
                 </section>
 
@@ -93,10 +98,10 @@
                     <p class="mt-1">Job <span class="font-mono font-semibold" x-text="confirmation?.job_identifier"></span> · <span x-text="confirmation?.quantity"></span> labels</p>
                 </div>
 
-                <button type="submit" :disabled="submitting" class="min-h-16 w-full rounded-2xl bg-zinc-950 px-6 text-xl font-bold text-white shadow-lg transition hover:bg-zinc-800 focus:outline-none focus:ring-4 focus:ring-zinc-400 disabled:cursor-wait disabled:opacity-60">
+                <flux:button type="submit" variant="primary" x-bind:disabled="submitting" class="min-h-16 w-full rounded-2xl! text-xl! font-bold! shadow-lg">
                     <span x-show="!submitting">Queue print job</span>
                     <span x-show="submitting">Submitting…</span>
-                </button>
+                </flux:button>
             </form>
         </main>
 

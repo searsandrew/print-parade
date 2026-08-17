@@ -9,6 +9,8 @@ use App\Models\Printer;
 use App\Models\User;
 
 test('the print catalog exposes published templates printers and pin enabled operators', function () {
+    $requester = User::factory()->sharedPrintStation()->create();
+    $this->actingAs($requester);
     $stock = LabelStock::factory()->create([
         'name' => 'Four by Two',
         'width' => 101.6,
@@ -31,7 +33,7 @@ test('the print catalog exposes published templates printers and pin enabled ope
     ]);
     $operator = catalogUserWithPin('Amanda Operator', '4826');
 
-    $response = $this->getJson('/api/print-catalog');
+    $response = $this->getJson('/print/catalog');
 
     $response->assertOk()
         ->assertJsonPath('templates.0.id', $template->id)
@@ -44,11 +46,13 @@ test('the print catalog exposes published templates printers and pin enabled ope
         ->assertJsonPath('printers.0.dpi', 300)
         ->assertJsonPath('printers.0.online', true)
         ->assertJsonPath('operators.0', ['id' => $operator->id, 'name' => 'Amanda Operator']);
+    $response->assertJsonPath('authorization.requires_operator_pin', true);
 
     expect($response->json('operators.0'))->not->toHaveKeys(['email', 'pin_hash']);
 });
 
 test('the catalog excludes unusable templates printers and users', function () {
+    $this->actingAs(User::factory()->sharedPrintStation()->create());
     $activeTemplate = catalogTemplate('Active Label');
     catalogTemplate('Inactive Label')->update(['is_active' => false]);
     $draftTemplate = LabelTemplate::factory()->create(['name' => 'Draft Label']);
@@ -65,7 +69,7 @@ test('the catalog excludes unusable templates printers and users', function () {
     $operator = catalogUserWithPin('Configured Operator', '4826');
     User::factory()->create(['name' => 'No PIN User']);
 
-    $response = $this->getJson('/api/print-catalog')->assertOk();
+    $response = $this->getJson('/print/catalog')->assertOk();
 
     expect(collect($response->json('templates'))->pluck('id')->all())->toBe([$activeTemplate->id])
         ->and(collect($response->json('printers'))->pluck('id')->all())->toBe([$availablePrinter->id])
@@ -73,12 +77,19 @@ test('the catalog excludes unusable templates printers and users', function () {
 });
 
 test('an active bridge is shown offline when its heartbeat is stale', function () {
+    $this->actingAs(User::factory()->create());
     $bridge = PrintBridge::factory()->create(['last_seen_at' => now()->subMinutes(3)]);
     Printer::factory()->for($bridge)->create();
 
-    $this->getJson('/api/print-catalog')
+    $this->getJson('/print/catalog')
         ->assertOk()
-        ->assertJsonPath('printers.0.online', false);
+        ->assertJsonPath('printers.0.online', false)
+        ->assertJsonPath('authorization.requires_operator_pin', false)
+        ->assertJsonPath('operators', []);
+});
+
+test('guests cannot access the print catalog', function () {
+    $this->getJson('/print/catalog')->assertUnauthorized();
 });
 
 function catalogTemplate(string $name): LabelTemplate

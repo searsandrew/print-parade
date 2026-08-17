@@ -6,6 +6,7 @@ use App\Labels\Enums\PrintJobStatus;
 use App\Models\LabelTemplateVersion;
 use App\Models\Printer;
 use App\Models\PrintJob;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -23,6 +24,7 @@ class PrintJobFactory extends Factory
         return [
             'label_template_version_id' => LabelTemplateVersion::factory(),
             'printer_id' => Printer::factory(),
+            'submitted_by' => User::factory(),
             'input_values' => [
                 'part_number' => fake()->bothify('PART-####'),
             ],
