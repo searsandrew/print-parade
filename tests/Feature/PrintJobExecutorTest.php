@@ -20,8 +20,11 @@ test('the selected user authorizes and prepares a zpl print job', function () {
     $prepared = app(PrintJobExecutor::class)->prepare($job, $selectedUser, '4826');
 
     expect($otherUser->id)->not->toBe($selectedUser->id)
-        ->and($job->status)->toBe(PrintJobStatus::Processing)
+        ->and($job->status)->toBe(PrintJobStatus::Queued)
         ->and($job->executor->is($selectedUser))->toBeTrue()
+        ->and($job->queued_at)->not->toBeNull()
+        ->and($job->output_payload)->toBe($prepared->zpl)
+        ->and($job->output_checksum)->toBe(hash('sha256', $prepared->zpl))
         ->and($prepared->jobId)->toBe($job->id)
         ->and($prepared->jobIdentifier)->toBe("CMM023 (0826) | {$job->shortIdentifier()}")
         ->and($prepared->printerId)->toBe($job->printer_id)

@@ -5,6 +5,7 @@ namespace App\Labels\Enums;
 enum PrintJobStatus: string
 {
     case Pending = 'pending';
+    case Queued = 'queued';
     case Processing = 'processing';
     case Completed = 'completed';
     case Failed = 'failed';

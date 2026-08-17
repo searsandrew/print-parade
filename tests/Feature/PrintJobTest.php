@@ -29,14 +29,22 @@ test('a print job preserves its template version inputs and quantity', function 
         ->and($job->printer)->not->toBeNull();
 });
 
-test('a pending print job can be executed and completed', function () {
+test('a pending print job can be queued claimed and completed', function () {
     $user = User::factory()->create();
     $job = PrintJob::factory()->create();
 
-    $job->start($user);
+    $job->queue($user, '^XA^FDTEST^FS^XZ');
+
+    expect($job->status)->toBe(PrintJobStatus::Queued)
+        ->and($job->executor->is($user))->toBeTrue()
+        ->and($job->queued_at)->not->toBeNull()
+        ->and($job->output_payload)->toBe('^XA^FDTEST^FS^XZ')
+        ->and($job->output_checksum)->toBe(hash('sha256', '^XA^FDTEST^FS^XZ'));
+
+    $job->claim();
 
     expect($job->status)->toBe(PrintJobStatus::Processing)
-        ->and($job->executor->is($user))->toBeTrue()
+        ->and($job->claimed_at)->not->toBeNull()
         ->and($job->started_at)->not->toBeNull();
 
     $job->complete();
@@ -47,7 +55,8 @@ test('a pending print job can be executed and completed', function () {
 
 test('a processing print job can fail with an audit message', function () {
     $job = PrintJob::factory()->create();
-    $job->start(User::factory()->create());
+    $job->queue(User::factory()->create(), '^XA^XZ');
+    $job->claim();
 
     $job->fail('Printer bridge did not respond.');
 
@@ -68,10 +77,11 @@ test('a pending print job can be cancelled', function () {
 test('print job lifecycle rejects invalid transitions', function () {
     $user = User::factory()->create();
     $completedJob = PrintJob::factory()->create();
-    $completedJob->start($user);
+    $completedJob->queue($user, '^XA^XZ');
+    $completedJob->claim();
     $completedJob->complete();
 
-    expect(fn () => $completedJob->start($user))->toThrow(LogicException::class)
+    expect(fn () => $completedJob->queue($user, '^XA^XZ'))->toThrow(LogicException::class)
         ->and(fn () => $completedJob->cancel())->toThrow(LogicException::class);
 
     $pendingJob = PrintJob::factory()->create();
@@ -82,7 +92,8 @@ test('print job lifecycle rejects invalid transitions', function () {
 
 test('a failed print job requires a failure message', function () {
     $job = PrintJob::factory()->create();
-    $job->start(User::factory()->create());
+    $job->queue(User::factory()->create(), '^XA^XZ');
+    $job->claim();
 
     expect(fn () => $job->fail('  '))->toThrow(
         LogicException::class,

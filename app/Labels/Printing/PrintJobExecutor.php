@@ -4,6 +4,7 @@ namespace App\Labels\Printing;
 
 use App\Labels\Definitions\LabelDefinitionResolver;
 use App\Labels\Enums\PrinterLanguage;
+use App\Labels\Enums\PrintJobStatus;
 use App\Labels\Rendering\LabelRenderContext;
 use App\Labels\Rendering\ZplRenderer;
 use App\Models\PrintJob;
@@ -20,9 +21,7 @@ final readonly class PrintJobExecutor
     ) {}
 
     /**
-     * Authorize and prepare a pending job for delivery to a Zebra printer bridge.
-     *
-     * The job remains processing until the bridge confirms or rejects delivery.
+     * Authorize, render, and queue a pending job for a Zebra printer bridge.
      *
      * @throws AuthorizationException
      */
@@ -37,8 +36,6 @@ final readonly class PrintJobExecutor
         if (! $job->printer->is_active) {
             throw new LogicException('The selected printer is inactive.');
         }
-
-        $job->start($user);
 
         try {
             $version = $job->labelTemplateVersion;
@@ -62,6 +59,7 @@ final readonly class PrintJobExecutor
                 $resolvedDefinition,
                 LabelRenderContext::fromStock($version->labelTemplate->labelStock, $job->printer->dpi),
             );
+            $job->queue($user, $zpl);
 
             return new PreparedPrintJob(
                 jobId: $job->id,
@@ -72,7 +70,9 @@ final readonly class PrintJobExecutor
                 zpl: $zpl,
             );
         } catch (Throwable $exception) {
-            $job->fail($exception->getMessage());
+            if ($job->status === PrintJobStatus::Pending) {
+                $job->failPreparation($user, $exception->getMessage());
+            }
 
             throw $exception;
         }

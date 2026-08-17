@@ -19,7 +19,11 @@ use LogicException;
  * @property array<string, mixed> $input_values
  * @property int $quantity
  * @property PrintJobStatus $status
+ * @property string|null $output_payload
+ * @property string|null $output_checksum
  * @property int|null $executed_by
+ * @property Carbon|null $queued_at
+ * @property Carbon|null $claimed_at
  * @property Carbon|null $started_at
  * @property Carbon|null $completed_at
  * @property Carbon|null $failed_at
@@ -40,6 +44,8 @@ class PrintJob extends Model
             'input_values' => 'array',
             'quantity' => 'integer',
             'status' => PrintJobStatus::class,
+            'queued_at' => 'immutable_datetime',
+            'claimed_at' => 'immutable_datetime',
             'started_at' => 'immutable_datetime',
             'completed_at' => 'immutable_datetime',
             'failed_at' => 'immutable_datetime',
@@ -63,15 +69,54 @@ class PrintJob extends Model
         return strtoupper(substr($this->id, -8));
     }
 
-    public function start(User $user): void
+    public function queue(User $user, string $payload): void
     {
         $this->assertStatus(PrintJobStatus::Pending);
+        $updated = self::query()
+            ->whereKey($this->getKey())
+            ->where('status', PrintJobStatus::Pending->value)
+            ->update([
+                'status' => PrintJobStatus::Queued->value,
+                'output_payload' => $payload,
+                'output_checksum' => hash('sha256', $payload),
+                'executed_by' => $user->getKey(),
+                'queued_at' => now(),
+            ]);
 
-        $this->forceFill([
-            'status' => PrintJobStatus::Processing,
-            'executed_by' => $user->getKey(),
-            'started_at' => now(),
-        ])->save();
+        $this->refresh();
+
+        if ($updated !== 1) {
+            throw new LogicException('This print job has already been authorized.');
+        }
+    }
+
+    public function claim(): void
+    {
+        $this->assertStatus(PrintJobStatus::Queued);
+
+        if ($this->output_payload === null
+            || $this->output_checksum === null
+            || ! hash_equals($this->output_checksum, hash('sha256', $this->output_payload))) {
+            throw new LogicException('The queued print payload failed its integrity check.');
+        }
+
+        $claimedAt = now();
+        $updated = self::query()
+            ->whereKey($this->getKey())
+            ->where('status', PrintJobStatus::Queued->value)
+            ->update([
+                'status' => PrintJobStatus::Processing->value,
+                'claimed_at' => $claimedAt,
+                'started_at' => $claimedAt,
+            ]);
+
+        if ($updated !== 1) {
+            $this->refresh();
+
+            throw new LogicException('This print job has already been claimed.');
+        }
+
+        $this->refresh();
     }
 
     public function complete(): void
@@ -87,13 +132,23 @@ class PrintJob extends Model
     public function fail(string $message): void
     {
         $this->assertStatus(PrintJobStatus::Processing);
-
-        if (trim($message) === '') {
-            throw new LogicException('A failed print job must include a failure message.');
-        }
+        $this->assertFailureMessage($message);
 
         $this->forceFill([
             'status' => PrintJobStatus::Failed,
+            'failed_at' => now(),
+            'failure_message' => $message,
+        ])->save();
+    }
+
+    public function failPreparation(User $user, string $message): void
+    {
+        $this->assertStatus(PrintJobStatus::Pending);
+        $this->assertFailureMessage($message);
+
+        $this->forceFill([
+            'status' => PrintJobStatus::Failed,
+            'executed_by' => $user->getKey(),
             'failed_at' => now(),
             'failure_message' => $message,
         ])->save();
@@ -139,6 +194,13 @@ class PrintJob extends Model
             throw new LogicException(
                 "A {$this->status->value} print job cannot perform this transition.",
             );
+        }
+    }
+
+    private function assertFailureMessage(string $message): void
+    {
+        if (trim($message) === '') {
+            throw new LogicException('A failed print job must include a failure message.');
         }
     }
 }
