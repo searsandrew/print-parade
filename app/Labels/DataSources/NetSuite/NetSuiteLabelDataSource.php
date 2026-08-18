@@ -23,6 +23,7 @@ final readonly class NetSuiteLabelDataSource implements LabelDataSource
                 'type' => 'string',
                 'required' => true,
                 'required_inputs' => ['part_number'],
+                'sample' => 'Sample part description',
             ],
             'upc' => [
                 'label' => 'UPC-A',
@@ -30,6 +31,7 @@ final readonly class NetSuiteLabelDataSource implements LabelDataSource
                 'format' => 'upc_a',
                 'required' => false,
                 'required_inputs' => ['part_number'],
+                'sample' => '036000291452',
             ],
         ];
     }

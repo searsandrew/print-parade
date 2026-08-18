@@ -9,7 +9,7 @@ interface LabelDataSource
     /**
      * Fields exposed to label templates, keyed by their unqualified field name.
      *
-     * @return array<string, array{label: string, type: 'string'|'number'|'boolean'|'date', required: bool, required_inputs: list<string>, format?: 'upc_a'}>
+     * @return array<string, array{label: string, type: 'string'|'number'|'boolean'|'date', required: bool, required_inputs: list<string>, format?: 'upc_a', sample?: scalar|null}>
      */
     public function fields(): array;
 

@@ -186,6 +186,23 @@ test('barcode widths snap to whole dot module breakpoints', function () {
         ->assertSee('036000291452');
 });
 
+test('datasource placeholders use valid samples on the canvas and rendered preview', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $template = designerTemplate();
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->call('addElement', 'barcode', 'upc_a')
+        ->set('elements.1.value', '{{ netsuite.upc }}')
+        ->call('addElement', 'text')
+        ->set('elements.2.value', '{{ netsuite.part_description }}')
+        ->assertSee('036000291452')
+        ->assertSee('Sample part description')
+        ->assertSee('data:image/svg+xml;base64,', false)
+        ->call('preview')
+        ->assertHasNoErrors()
+        ->assertSet('previewSvg', fn (string $svg): bool => str_contains($svg, 'Sample part description'));
+});
+
 test('administrators can define fields for mixed element content', function () {
     $this->actingAs(User::factory()->admin()->create());
     $template = designerTemplate();

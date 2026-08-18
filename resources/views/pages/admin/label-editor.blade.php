@@ -127,7 +127,7 @@ new #[Title('Label designer')] class extends Component {
     }
 
     /**
-     * @return array<string, array<string, array{label: string, type: string, required: bool, required_inputs: list<string>, format?: string}>>
+     * @return array<string, array<string, array{label: string, type: string, required: bool, required_inputs: list<string>, format?: string, sample?: scalar|null}>>
      */
     #[Computed]
     public function dataSourceCatalog(): array
@@ -406,7 +406,12 @@ new #[Title('Label designer')] class extends Component {
     {
         try {
             $definition = $this->validatedDefinition($resolver, $renderer);
-            $resolved = $resolver->resolve($definition, $this->sampleValues(), ['job_identifier' => "{$this->template->code} ({$this->revisionCode}) | PREVIEW"]);
+            $resolved = $resolver->resolve(
+                $definition,
+                $this->sampleValues(),
+                ['job_identifier' => "{$this->template->code} ({$this->revisionCode}) | PREVIEW"],
+                $this->sampleDataSourceValues(),
+            );
             $this->previewSvg = $renderer->render($resolved, LabelRenderContext::fromStock($this->template->labelStock, 203));
             Flux::modal('designer-preview')->show();
         } catch (\InvalidArgumentException $exception) {
@@ -514,7 +519,12 @@ new #[Title('Label designer')] class extends Component {
             'fields' => $this->fields,
             'canvas_rotation' => $this->canvasRotation,
         ]);
-        $resolved = $resolver->resolve($definition, $this->sampleValues(), ['job_identifier' => "{$this->template->code} ({$this->revisionCode}) | PREVIEW"]);
+        $resolved = $resolver->resolve(
+            $definition,
+            $this->sampleValues(),
+            ['job_identifier' => "{$this->template->code} ({$this->revisionCode}) | PREVIEW"],
+            $this->sampleDataSourceValues(),
+        );
         $renderer->render($resolved, LabelRenderContext::fromStock($this->template->labelStock, 203));
 
         return $definition;
@@ -559,6 +569,26 @@ new #[Title('Label designer')] class extends Component {
         return $values;
     }
 
+    /** @return array<string, array<string, scalar|null>> */
+    private function sampleDataSourceValues(): array
+    {
+        $values = [];
+
+        foreach ($this->dataSourceCatalog as $namespace => $fields) {
+            foreach ($fields as $name => $field) {
+                $values[$namespace][$name] = $field['sample'] ?? match (true) {
+                    ($field['format'] ?? null) === 'upc_a' => '036000291452',
+                    $field['type'] === 'number' => 123,
+                    $field['type'] === 'boolean' => true,
+                    $field['type'] === 'date' => now()->toDateString(),
+                    default => 'Sample text',
+                };
+            }
+        }
+
+        return $values;
+    }
+
     private function castFieldValue(string $type, string $value): mixed
     {
         return match ($type) {
@@ -571,14 +601,28 @@ new #[Title('Label designer')] class extends Component {
     /** @param array<string, mixed> $element */
     public function barcodePreviewValue(array $element): string
     {
-        $value = (string) $element['value'];
+        return $this->elementPreviewValue($element);
+    }
 
-        return preg_replace_callback('/\{\{\s*([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?)\s*\}\}/', function (array $matches): string {
+    /** @param array<string, mixed> $element */
+    public function elementPreviewValue(array $element): string
+    {
+        $value = (string) ($element['value'] ?? '');
+        $inputValues = $this->sampleValues();
+        $dataSourceValues = $this->sampleDataSourceValues();
+
+        return preg_replace_callback('/\{\{\s*([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?)\s*\}\}/', function (array $matches) use ($inputValues, $dataSourceValues): string {
             if ($matches[1] === 'system.job_identifier') {
                 return 'JOB12345';
             }
 
-            return (string) ($this->sampleValues()[$matches[1]] ?? 'SAMPLE');
+            if (str_contains($matches[1], '.')) {
+                [$namespace, $name] = explode('.', $matches[1], 2);
+
+                return (string) ($dataSourceValues[$namespace][$name] ?? 'SAMPLE');
+            }
+
+            return (string) ($inputValues[$matches[1]] ?? 'SAMPLE');
         }, $value) ?? $value;
     }
 
@@ -977,7 +1021,7 @@ new #[Title('Label designer')] class extends Component {
                             </span>
                         @else
                             <span class="block size-full text-black" style="font-family: {{ ($element['style']['font_family'] ?? 'sans') === 'monospace' ? 'monospace' : 'sans-serif' }}; font-weight: {{ $element['style']['font_weight'] ?? 'normal' }}; font-size: clamp(8px, {{ ((float) ($element['style']['font_size'] ?? 3) / $this->canvasHeight) * 100 }}cqh, 36px); text-align: {{ $element['style']['alignment'] ?? 'left' }};">
-                                {{ $element['type'] === 'job_identifier' ? $this->template->code.' ('.$revisionCode.') | JOB ID' : ($element['value'] ?? '') }}
+                                {{ $element['type'] === 'job_identifier' ? $this->template->code.' ('.$revisionCode.') | JOB ID' : $this->elementPreviewValue($element) }}
                             </span>
                         @endif
                         </span>

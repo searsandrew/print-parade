@@ -1,5 +1,6 @@
 <?php
 
+use App\Labels\DataSources\NetSuite\NetSuiteItemRepository;
 use App\Labels\Definitions\LabelDefinition;
 use App\Labels\Enums\PrintJobStatus;
 use App\Models\LabelStock;
@@ -15,12 +16,15 @@ use Searsandrew\BriarRose\BriarRoseManager;
 
 test('a published operator label flows from catalog through the bridge payload', function () {
     config()->set('briar-rose.rest.retries.enabled', false);
-    config()->set('briar-rose.account', 'test-account');
-    config()->set('briar-rose.consumer_key', 'consumer-key');
-    config()->set('briar-rose.consumer_secret', 'consumer-secret');
-    config()->set('briar-rose.token_id', 'token-id');
-    config()->set('briar-rose.token_secret', 'token-secret');
-    $this->app->forgetInstance(BriarRoseManager::class);
+    $this->app->instance(BriarRoseManager::class, new BriarRoseManager(
+        account: 'test-account',
+        consumerKey: 'consumer-key',
+        consumerSecret: 'consumer-secret',
+        tokenId: 'token-id',
+        tokenSecret: 'token-secret',
+        restletBaseUrl: null,
+        restBaseUrl: null,
+    ));
     Http::fake([
         'https://test-account.suitetalk.api.netsuite.com/*' => Http::response([
             'items' => [[
@@ -29,6 +33,9 @@ test('a published operator label flows from catalog through the bridge payload',
                 'upc' => '036000291452',
             ]],
         ]),
+    ]);
+    expect(app(NetSuiteItemRepository::class)->findByPartNumber('CMM023'))->toMatchArray([
+        'part_description' => 'Replacement filter assembly',
     ]);
     $station = User::factory()->sharedPrintStation()->create();
     $operator = User::factory()->create(['name' => 'Amanda Operator']);
