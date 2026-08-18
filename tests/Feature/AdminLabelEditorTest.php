@@ -5,6 +5,7 @@ use App\Labels\Enums\LabelElementType;
 use App\Labels\Examples\CalibrationLabel;
 use App\Models\LabelStock;
 use App\Models\LabelTemplate;
+use App\Models\LabelTemplateDraft;
 use App\Models\LabelTemplateVersion;
 use App\Models\User;
 use Livewire\Livewire;
@@ -276,6 +277,60 @@ test('visual revisions use sequential versions and preserve their creator', func
     expect($revision->revision_code)->toBe('0826')
         ->and($revision->created_by)->toBe($admin->id)
         ->and($revision->published_at)->toBeNull();
+});
+
+test('an administrator can save and recover a private working draft', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+    $template = designerTemplate();
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->call('addElement', 'text')
+        ->set('elements.1.value', 'Replacement for {{ part_number }}')
+        ->set('revisionCode', '0926')
+        ->call('saveDraft')
+        ->assertHasNoErrors();
+
+    $draft = LabelTemplateDraft::query()->sole();
+
+    expect($draft->user_id)->toBe($admin->id)
+        ->and($draft->revision_code)->toBe('0926')
+        ->and($draft->definition['elements'][1]['value'])->toBe('Replacement for {{ part_number }}');
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->assertSet('draftId', $draft->id)
+        ->assertSet('revisionCode', '0926')
+        ->assertSet('elements.1.value', 'Replacement for {{ part_number }}');
+});
+
+test('working drafts are private to the administrator who created them', function () {
+    $template = designerTemplate();
+    $owner = User::factory()->admin()->create();
+    $otherAdmin = User::factory()->admin()->create();
+    LabelTemplateDraft::factory()->for($template)->for($owner)->create();
+
+    $this->actingAs($otherAdmin);
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->assertSet('draftId', null)
+        ->assertSet('elements.0.type', LabelElementType::JobIdentifier->value);
+});
+
+test('a visual revision can be created and published directly from the designer', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+    $template = designerTemplate();
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->call('saveDraft')
+        ->call('saveRevision', true)
+        ->assertHasNoErrors();
+
+    $version = $template->versions()->sole();
+
+    expect($version->published_at)->not->toBeNull()
+        ->and(LabelTemplateDraft::query()->count())->toBe(0)
+        ->and($template->fresh()->publishedVersion->is($version))->toBeTrue();
 });
 
 function designerTemplate(): LabelTemplate

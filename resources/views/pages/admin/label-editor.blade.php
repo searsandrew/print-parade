@@ -10,6 +10,7 @@ use App\Labels\Rendering\SvgRenderer;
 use App\Labels\Rendering\TcLibBarcodeSvgGenerator;
 use App\Labels\Templates\LabelRevisionCreator;
 use App\Models\LabelTemplate;
+use App\Models\LabelTemplateDraft;
 use App\Models\LabelTemplateVersion;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
@@ -23,6 +24,14 @@ new #[Title('Label designer')] class extends Component {
     public int $templateId;
 
     public ?int $sourceVersionId = null;
+
+    public ?int $draftId = null;
+
+    public ?string $draftSavedAt = null;
+
+    public string $lastDraftHash = '';
+
+    public bool $draftRecovered = false;
 
     public string $revisionCode = '';
 
@@ -69,7 +78,23 @@ new #[Title('Label designer')] class extends Component {
         $this->sourceVersionId = $labelTemplateVersion?->id;
         $this->revisionCode = now()->format('my');
 
-        if ($labelTemplateVersion === null) {
+        $draft = $labelTemplateVersion === null
+            ? LabelTemplateDraft::query()
+                ->whereBelongsTo($labelTemplate)
+                ->whereBelongsTo(Auth::user())
+                ->first()
+            : null;
+
+        if ($draft !== null) {
+            $this->draftId = $draft->id;
+            $this->draftRecovered = true;
+            $this->draftSavedAt = $draft->updated_at?->toIso8601String();
+            $this->revisionCode = $draft->revision_code;
+            $this->elements = $draft->definition['elements'];
+            $this->fields = $draft->definition['fields'];
+            $this->canvasRotation = $draft->definition['canvas_rotation'] ?? 0;
+            $this->lastDraftHash = $this->draftHash();
+        } elseif ($labelTemplateVersion === null) {
             $this->elements = [$this->newJobIdentifierElement()];
             $this->fields = [];
         } else {
@@ -80,6 +105,18 @@ new #[Title('Label designer')] class extends Component {
         }
 
         $this->selectedIndex = $this->elements === [] ? null : 0;
+    }
+
+    public function saveDraft(): void
+    {
+        if ($this->persistDraft()) {
+            Flux::toast(variant: 'success', text: __('Draft saved.'));
+        }
+    }
+
+    public function saveDraftSilently(): void
+    {
+        $this->persistDraft();
     }
 
     #[Computed]
@@ -371,6 +408,7 @@ new #[Title('Label designer')] class extends Component {
         LabelRevisionCreator $revisionCreator,
         LabelDefinitionResolver $resolver,
         SvgRenderer $renderer,
+        bool $publish = false,
     ): void {
         $this->validate([
             'revisionCode' => ['required', 'string', 'regex:/\A(?:0[1-9]|1[0-2])\d{2}\z/'],
@@ -386,9 +424,70 @@ new #[Title('Label designer')] class extends Component {
             return;
         }
 
-        $revisionCreator->create($this->template, $this->revisionCode, $definition, Auth::user());
-        Flux::toast(variant: 'success', text: __('Immutable revision created.'));
+        $version = $revisionCreator->create($this->template, $this->revisionCode, $definition, Auth::user());
+
+        if ($publish) {
+            $version->forceFill(['published_at' => now()])->save();
+        }
+
+        LabelTemplateDraft::query()
+            ->where('label_template_id', $this->templateId)
+            ->where('user_id', Auth::id())
+            ->delete();
+
+        Flux::toast(variant: 'success', text: $publish ? __('Revision created and published.') : __('Immutable revision created.'));
         $this->redirectRoute('admin.label-templates', navigate: true);
+    }
+
+    private function persistDraft(): bool
+    {
+        $this->normalizeEditorElements();
+
+        try {
+            $definition = LabelDefinition::fromArray([
+                'elements' => array_values($this->elements),
+                'fields' => $this->fields,
+                'canvas_rotation' => $this->canvasRotation,
+            ]);
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
+
+        $hash = hash('xxh128', json_encode([$this->revisionCode, $definition->toArray()], JSON_THROW_ON_ERROR));
+
+        if ($hash === $this->lastDraftHash) {
+            return true;
+        }
+
+        $draft = LabelTemplateDraft::query()->updateOrCreate(
+            [
+                'label_template_id' => $this->templateId,
+                'user_id' => Auth::id(),
+            ],
+            [
+                'revision_code' => $this->revisionCode,
+                'schema_version' => LabelDefinition::SCHEMA_VERSION,
+                'definition' => $definition->toArray(),
+            ],
+        );
+
+        $this->draftId = $draft->id;
+        $this->draftSavedAt = $draft->updated_at?->toIso8601String();
+        $this->lastDraftHash = $hash;
+
+        return true;
+    }
+
+    private function draftHash(): string
+    {
+        return hash('xxh128', json_encode([
+            $this->revisionCode,
+            [
+                'elements' => array_values($this->elements),
+                'fields' => $this->fields,
+                'canvas_rotation' => $this->canvasRotation,
+            ],
+        ], JSON_THROW_ON_ERROR));
     }
 
     private function validatedDefinition(LabelDefinitionResolver $resolver, SvgRenderer $renderer): LabelDefinition
@@ -601,7 +700,7 @@ new #[Title('Label designer')] class extends Component {
     }
 }; ?>
 
-<div class="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-5">
+<div wire:poll.3s="saveDraftSilently" class="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-5">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:breadcrumbs>
@@ -619,10 +718,19 @@ new #[Title('Label designer')] class extends Component {
                 <flux:select.option value="270">{{ __('Rotate canvas 270°') }}</flux:select.option>
             </flux:select>
             <flux:input wire:model="revisionCode" :label="__('Revision (MMYY)')" class="w-36" maxlength="4" />
+            <flux:button icon="cloud-arrow-up" wire:click="saveDraft">{{ __('Save draft') }}</flux:button>
             <flux:button icon="eye" wire:click="preview">{{ __('Rendered preview') }}</flux:button>
             <flux:button variant="primary" icon="check" wire:click="saveRevision" wire:confirm="{{ __('Create this immutable revision? Future changes will require another revision.') }}">{{ __('Create revision') }}</flux:button>
+            <flux:button variant="primary" icon="paper-airplane" wire:click="saveRevision(true)" wire:confirm="{{ __('Create and publish this immutable revision? It will immediately become available for new print jobs.') }}">{{ __('Create & publish') }}</flux:button>
         </div>
     </div>
+
+    @if ($draftId !== null)
+        <flux:callout variant="info" icon="cloud" heading="{{ $draftRecovered ? __('Draft recovered') : __('Working draft saved') }}">
+            {{ $draftRecovered ? __('Your previous working copy was restored.') : __('This working copy is now stored on the server.') }}
+            {{ __('It is private to your account and will be removed when you create a revision.') }}
+        </flux:callout>
+    @endif
 
     @error('editor')<flux:callout variant="danger" icon="exclamation-triangle">{{ $message }}</flux:callout>@enderror
     @error('revisionCode')<flux:callout variant="danger" icon="exclamation-triangle">{{ $message }}</flux:callout>@enderror
