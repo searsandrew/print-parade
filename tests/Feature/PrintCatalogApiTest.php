@@ -26,7 +26,7 @@ test('the print catalog exposes published templates printers and pin enabled ope
         'definition' => CalibrationLabel::definition(),
     ]);
     $onlineBridge = PrintBridge::factory()->create(['last_seen_at' => now()]);
-    $printer = Printer::factory()->for($onlineBridge)->create([
+    $printer = Printer::factory()->for($onlineBridge)->for($stock)->create([
         'name' => 'Packing Zebra',
         'location' => 'Packing',
         'dpi' => 300,
@@ -43,6 +43,7 @@ test('the print catalog exposes published templates printers and pin enabled ope
         ->assertJsonPath('templates.0.fields.part_number.required', true)
         ->assertJsonPath('printers.0.id', $printer->id)
         ->assertJsonPath('printers.0.language', 'zpl')
+        ->assertJsonPath('printers.0.label_stock_id', $stock->id)
         ->assertJsonPath('printers.0.dpi', 300)
         ->assertJsonPath('printers.0.online', true)
         ->assertJsonPath('operators.0', ['id' => $operator->id, 'name' => 'Amanda Operator']);
@@ -61,8 +62,14 @@ test('the catalog excludes unusable templates printers and users', function () {
     $inactiveStockTemplate->labelStock->update(['is_active' => false]);
 
     $activeBridge = PrintBridge::factory()->create();
-    $availablePrinter = Printer::factory()->for($activeBridge)->create(['name' => 'Available Printer']);
+    $availablePrinter = Printer::factory()->for($activeBridge)->for($activeTemplate->labelStock)->create(['name' => 'Available Printer']);
     Printer::factory()->for($activeBridge)->inactive()->create(['name' => 'Inactive Printer']);
+    Printer::factory()->for($activeBridge)->create([
+        'name' => 'Unconfigured Printer',
+        'label_stock_id' => null,
+    ]);
+    $inactiveStock = LabelStock::factory()->inactive()->create();
+    Printer::factory()->for($activeBridge)->for($inactiveStock)->create(['name' => 'Inactive Stock Printer']);
     $inactiveBridge = PrintBridge::factory()->inactive()->create();
     Printer::factory()->for($inactiveBridge)->create(['name' => 'Orphaned Printer']);
 

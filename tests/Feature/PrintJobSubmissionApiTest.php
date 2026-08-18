@@ -13,7 +13,7 @@ test('a selected user can authorize and queue a print job', function () {
     $submitter = User::factory()->sharedPrintStation()->create();
     $this->actingAs($submitter);
     [$template, $publishedVersion] = publishedSubmissionTemplate();
-    $printer = Printer::factory()->create(['dpi' => 203]);
+    $printer = Printer::factory()->for($template->labelStock)->create(['dpi' => 203]);
     $user = submissionUser('4826');
 
     $response = $this->postJson('/print/jobs', submissionPayload($template, $printer, $user));
@@ -49,7 +49,7 @@ test('submission always uses the latest published template version', function ()
         'revision_code' => '1026',
         'definition' => CalibrationLabel::definition(),
     ]);
-    $printer = Printer::factory()->create();
+    $printer = Printer::factory()->for($template->labelStock)->create();
     $user = submissionUser('4826');
     $this->actingAs($user);
 
@@ -61,7 +61,7 @@ test('submission always uses the latest published template version', function ()
 test('an incorrect pin does not create a print job', function () {
     $this->actingAs(User::factory()->sharedPrintStation()->create());
     [$template] = publishedSubmissionTemplate();
-    $printer = Printer::factory()->create();
+    $printer = Printer::factory()->for($template->labelStock)->create();
     $user = submissionUser('4826');
     $payload = submissionPayload($template, $printer, $user);
     $payload['pin'] = '1111';
@@ -75,7 +75,7 @@ test('invalid label values return validation details and retain the failed audit
     $submitter = User::factory()->sharedPrintStation()->create();
     $this->actingAs($submitter);
     [$template] = publishedSubmissionTemplate();
-    $printer = Printer::factory()->create();
+    $printer = Printer::factory()->for($template->labelStock)->create();
     $user = submissionUser('4826');
     $payload = submissionPayload($template, $printer, $user);
     $payload['values'] = ['country_of_origin' => 'USA'];
@@ -94,7 +94,7 @@ test('invalid label values return validation details and retain the failed audit
 test('inactive templates and printers cannot receive submissions', function (string $inactive) {
     $this->actingAs(User::factory()->create());
     [$template] = publishedSubmissionTemplate();
-    $printer = Printer::factory()->create();
+    $printer = Printer::factory()->for($template->labelStock)->create();
     $user = submissionUser('4826');
 
     if ($inactive === 'template') {
@@ -109,6 +109,19 @@ test('inactive templates and printers cannot receive submissions', function (str
 
     expect(PrintJob::query()->count())->toBe(0);
 })->with(['template', 'printer']);
+
+test('a printer loaded with different stock cannot receive a submission', function () {
+    $this->actingAs(User::factory()->create());
+    [$template] = publishedSubmissionTemplate();
+    $printer = Printer::factory()->create();
+    $user = submissionUser('4826');
+
+    $this->postJson('/print/jobs', submissionPayload($template, $printer, $user))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('print_job');
+
+    expect(PrintJob::query()->count())->toBe(0);
+});
 
 test('submission input is validated before authorization', function () {
     $this->actingAs(User::factory()->create());
@@ -128,7 +141,7 @@ test('submission input is validated before authorization', function () {
 test('pin attempts are rate limited per selected user and client', function () {
     $this->actingAs(User::factory()->sharedPrintStation()->create());
     [$template] = publishedSubmissionTemplate();
-    $printer = Printer::factory()->create();
+    $printer = Printer::factory()->for($template->labelStock)->create();
     $user = submissionUser('4826');
     $payload = submissionPayload($template, $printer, $user);
     $payload['pin'] = '1111';
@@ -142,7 +155,7 @@ test('pin attempts are rate limited per selected user and client', function () {
 
 test('a personal account prints without selecting an operator or entering a pin', function () {
     [$template] = publishedSubmissionTemplate();
-    $printer = Printer::factory()->create();
+    $printer = Printer::factory()->for($template->labelStock)->create();
     $user = User::factory()->create();
     $this->actingAs($user);
     $payload = submissionPayload($template, $printer, $user);

@@ -1,6 +1,7 @@
 <?php
 
 use App\Labels\Enums\PrinterLanguage;
+use App\Models\LabelStock;
 use App\Models\PrintBridge;
 use App\Models\Printer;
 use Flux\Flux;
@@ -21,6 +22,8 @@ new #[Title('Bridges & printers')] class extends Component {
     public ?int $printerId = null;
 
     public int|string|null $printerBridgeId = null;
+
+    public int|string|null $printerLabelStockId = null;
 
     public string $printerName = '';
 
@@ -46,9 +49,16 @@ new #[Title('Bridges & printers')] class extends Component {
     public function bridges(): Collection
     {
         return PrintBridge::query()
-            ->with(['printers' => fn ($query) => $query->orderBy('name')])
+            ->with(['printers' => fn ($query) => $query->with('labelStock')->orderBy('name')])
             ->orderBy('name')
             ->get();
+    }
+
+    /** @return Collection<int, LabelStock> */
+    #[Computed]
+    public function labelStocks(): Collection
+    {
+        return LabelStock::query()->where('is_active', true)->orderBy('name')->get();
     }
 
     public function createBridge(): void
@@ -131,6 +141,7 @@ new #[Title('Bridges & printers')] class extends Component {
 
         $this->printerId = $printer->id;
         $this->printerBridgeId = $printer->print_bridge_id;
+        $this->printerLabelStockId = $printer->label_stock_id;
         $this->printerName = $printer->name;
         $this->printerLocation = $printer->location ?? '';
         $this->printerLanguage = $printer->language->value;
@@ -146,6 +157,7 @@ new #[Title('Bridges & printers')] class extends Component {
     {
         $validated = $this->validate([
             'printerBridgeId' => ['required', 'integer', 'exists:print_bridges,id'],
+            'printerLabelStockId' => ['required', 'integer', 'exists:label_stocks,id'],
             'printerName' => ['required', 'string', 'max:255'],
             'printerLocation' => ['nullable', 'string', 'max:255'],
             'printerLanguage' => ['required', Rule::enum(PrinterLanguage::class)],
@@ -167,6 +179,7 @@ new #[Title('Bridges & printers')] class extends Component {
 
         $printer->fill([
             'print_bridge_id' => $validated['printerBridgeId'],
+            'label_stock_id' => $validated['printerLabelStockId'],
             'name' => $validated['printerName'],
             'location' => filled($validated['printerLocation']) ? $validated['printerLocation'] : null,
             'language' => $validated['printerLanguage'],
@@ -190,7 +203,7 @@ new #[Title('Bridges & printers')] class extends Component {
 
     private function resetPrinterForm(): void
     {
-        $this->reset('printerId', 'printerBridgeId', 'printerName', 'printerLocation', 'printerIdentifier');
+        $this->reset('printerId', 'printerBridgeId', 'printerLabelStockId', 'printerName', 'printerLocation', 'printerIdentifier');
         $this->printerLanguage = PrinterLanguage::Zpl->value;
         $this->printerDpi = 203;
         $this->printerIsActive = true;
@@ -249,6 +262,7 @@ new #[Title('Bridges & printers')] class extends Component {
                             <flux:table.column>{{ __('Printer') }}</flux:table.column>
                             <flux:table.column>{{ __('Language') }}</flux:table.column>
                             <flux:table.column>{{ __('Resolution') }}</flux:table.column>
+                            <flux:table.column>{{ __('Loaded stock') }}</flux:table.column>
                             <flux:table.column>{{ __('Bridge identifier') }}</flux:table.column>
                             <flux:table.column>{{ __('Status') }}</flux:table.column>
                             <flux:table.column></flux:table.column>
@@ -262,6 +276,7 @@ new #[Title('Bridges & printers')] class extends Component {
                                     </flux:table.cell>
                                     <flux:table.cell>{{ strtoupper($printer->language->value) }}</flux:table.cell>
                                     <flux:table.cell>{{ __(':dpi DPI', ['dpi' => $printer->dpi]) }}</flux:table.cell>
+                                    <flux:table.cell>{{ $printer->labelStock?->name ?? __('None loaded') }}</flux:table.cell>
                                     <flux:table.cell><code class="text-sm">{{ $printer->bridge_identifier }}</code></flux:table.cell>
                                     <flux:table.cell>
                                         <flux:badge :color="$printer->is_active ? 'green' : 'zinc'" size="sm">
@@ -308,6 +323,12 @@ new #[Title('Bridges & printers')] class extends Component {
             <flux:select wire:model="printerBridgeId" :label="__('Print bridge')" required>
                 @foreach ($this->bridges as $bridge)
                     <flux:select.option :value="$bridge->id">{{ $bridge->name }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:select wire:model="printerLabelStockId" :label="__('Loaded label stock')" :description="__('Only templates using this stock will offer this printer at the print station.')" required>
+                <flux:select.option value="">{{ __('Select a stock') }}</flux:select.option>
+                @foreach ($this->labelStocks as $stock)
+                    <flux:select.option :value="$stock->id">{{ $stock->name }} · {{ number_format((float) $stock->width, 3) }} × {{ number_format((float) $stock->height, 3) }} mm</flux:select.option>
                 @endforeach
             </flux:select>
             <div class="grid gap-5 sm:grid-cols-2">

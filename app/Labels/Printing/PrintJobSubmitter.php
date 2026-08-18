@@ -36,8 +36,18 @@ final readonly class PrintJobSubmitter
             throw new LogicException('The selected label template has no published version.');
         }
 
+        $printer->loadMissing('labelStock');
+
         if (! $printer->is_active) {
             throw new LogicException('The selected printer is inactive.');
+        }
+
+        if ($printer->label_stock_id === null || ! $printer->labelStock?->is_active) {
+            throw new LogicException('The selected printer does not have an active label stock loaded.');
+        }
+
+        if ($printer->label_stock_id !== $template->label_stock_id) {
+            throw new LogicException('The selected printer is loaded with a different label stock.');
         }
 
         $job = PrintJob::query()->create([

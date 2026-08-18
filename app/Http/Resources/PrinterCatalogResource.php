@@ -20,6 +20,7 @@ class PrinterCatalogResource extends JsonResource
             'location' => $this->location,
             'language' => $this->language->value,
             'dpi' => $this->dpi,
+            'label_stock_id' => $this->label_stock_id,
             'online' => $this->printBridge->last_seen_at?->greaterThanOrEqualTo(now()->subMinutes(2)) ?? false,
         ];
     }

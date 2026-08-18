@@ -27,8 +27,9 @@ class PrintCatalogController extends Controller
             ->get();
         $printers = Printer::query()
             ->where('is_active', true)
+            ->whereHas('labelStock', fn ($query) => $query->where('is_active', true))
             ->whereHas('printBridge', fn ($query) => $query->where('is_active', true))
-            ->with('printBridge')
+            ->with(['labelStock', 'printBridge'])
             ->orderBy('name')
             ->get();
         $operators = $authenticatedUser->requires_print_operator_pin

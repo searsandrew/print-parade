@@ -14,6 +14,7 @@ use LogicException;
 /**
  * @property int $id
  * @property int $print_bridge_id
+ * @property int|null $label_stock_id
  * @property string $name
  * @property string|null $location
  * @property PrinterLanguage $language
@@ -21,7 +22,7 @@ use LogicException;
  * @property string $bridge_identifier
  * @property bool $is_active
  */
-#[Fillable(['print_bridge_id', 'name', 'location', 'language', 'dpi', 'bridge_identifier', 'is_active'])]
+#[Fillable(['print_bridge_id', 'label_stock_id', 'name', 'location', 'language', 'dpi', 'bridge_identifier', 'is_active'])]
 class Printer extends Model
 {
     /** @use HasFactory<PrinterFactory> */
@@ -57,5 +58,11 @@ class Printer extends Model
     public function printBridge(): BelongsTo
     {
         return $this->belongsTo(PrintBridge::class);
+    }
+
+    /** @return BelongsTo<LabelStock, $this> */
+    public function labelStock(): BelongsTo
+    {
+        return $this->belongsTo(LabelStock::class);
     }
 }

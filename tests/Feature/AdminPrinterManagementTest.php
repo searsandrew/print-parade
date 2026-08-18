@@ -1,6 +1,7 @@
 <?php
 
 use App\Labels\Enums\PrinterLanguage;
+use App\Models\LabelStock;
 use App\Models\PrintBridge;
 use App\Models\Printer;
 use App\Models\User;
@@ -64,9 +65,11 @@ test('administrators can update a bridge and rotate its token', function () {
 test('administrators can create and update a printer', function () {
     $this->actingAs(User::factory()->admin()->create());
     $bridge = PrintBridge::factory()->create();
+    $stock = LabelStock::factory()->create();
 
     Livewire::test('pages::admin.printers')
         ->call('createPrinter', $bridge->id)
+        ->set('printerLabelStockId', $stock->id)
         ->set('printerName', 'Packing Zebra ZT411')
         ->set('printerLocation', 'Packing Station 1')
         ->set('printerLanguage', PrinterLanguage::Zpl->value)
@@ -86,6 +89,7 @@ test('administrators can create and update a printer', function () {
 
     expect($printer->refresh()->name)->toBe('Packing Zebra')
         ->and($printer->print_bridge_id)->toBe($bridge->id)
+        ->and($printer->label_stock_id)->toBe($stock->id)
         ->and($printer->language)->toBe(PrinterLanguage::Zpl)
         ->and($printer->dpi)->toBe(300)
         ->and($printer->is_active)->toBeFalse();

@@ -38,8 +38,17 @@ document.addEventListener('alpine:init', () => {
             return this.catalog.templates.find((template) => String(template.id) === String(this.templateId));
         },
 
+        get availablePrinters() {
+            if (!this.selectedTemplate) return [];
+
+            return this.catalog.printers.filter(
+                (printer) => String(printer.label_stock_id) === String(this.selectedTemplate.stock.id),
+            );
+        },
+
         templateChanged() {
             this.values = {};
+            this.printerId = '';
             this.confirmation = null;
 
             if (!this.selectedTemplate) {

@@ -63,10 +63,11 @@
                         <label for="printer" class="mb-2 block text-base font-semibold">Printer</label>
                         <select id="printer" x-model="printerId" required class="min-h-14 w-full rounded-xl border-zinc-300 bg-white px-4 text-lg shadow-sm focus:border-zinc-900 focus:ring-zinc-900">
                             <option value="">Select a printer</option>
-                            <template x-for="printer in catalog.printers" :key="printer.id">
+                            <template x-for="printer in availablePrinters" :key="printer.id">
                                 <option :value="printer.id" :disabled="!printer.online" x-text="`${printer.name}${printer.location ? ` — ${printer.location}` : ''}${printer.online ? '' : ' (offline)'}`"></option>
                             </template>
                         </select>
+                        <p x-show="selectedTemplate && availablePrinters.length === 0" class="mt-2 text-sm font-medium text-amber-700">No active printer currently has this label stock loaded.</p>
                     </div>
                     <div>
                         <label for="quantity" class="mb-2 block text-base font-semibold">Quantity</label>
