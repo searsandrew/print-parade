@@ -2,7 +2,9 @@
 
 use App\Labels\Definitions\LabelDefinition;
 use App\Labels\Definitions\LabelDefinitionResolver;
+use App\Labels\Enums\BarcodeSymbology;
 use App\Labels\Enums\LabelElementType;
+use App\Labels\Enums\QrErrorCorrection;
 use App\Labels\Rendering\LabelRenderContext;
 use App\Labels\Rendering\SvgRenderer;
 use App\Labels\Templates\LabelRevisionCreator;
@@ -82,7 +84,7 @@ new #[Title('Label designer')] class extends Component {
         return LabelTemplate::query()->with('labelStock')->findOrFail($this->templateId);
     }
 
-    public function addElement(string $type): void
+    public function addElement(string $type, ?string $symbology = null): void
     {
         $elementType = LabelElementType::tryFrom($type);
 
@@ -91,6 +93,7 @@ new #[Title('Label designer')] class extends Component {
             LabelElementType::JobIdentifier => $this->newJobIdentifierElement(),
             LabelElementType::Line => $this->newLineElement(),
             LabelElementType::Rectangle => $this->newRectangleElement(),
+            LabelElementType::Barcode => $this->newBarcodeElement($symbology),
             default => null,
         };
 
@@ -99,6 +102,27 @@ new #[Title('Label designer')] class extends Component {
         $this->elements[] = $element;
         $this->selectedIndex = array_key_last($this->elements);
         $this->acknowledgeMissingJobIdentifier = false;
+    }
+
+    public function updateElementGeometry(int $index, float $x, float $y, float $width, float $height): void
+    {
+        abort_unless(array_key_exists($index, $this->elements), 404);
+
+        $stockWidth = (float) $this->template->labelStock->width;
+        $stockHeight = (float) $this->template->labelStock->height;
+        $width = max(0.1, min($width, $stockWidth));
+        $height = max(0.1, min($height, $stockHeight));
+
+        $this->elements[$index]['x'] = round(max(0.0, min($x, $stockWidth - $width)), 3);
+        $this->elements[$index]['y'] = round(max(0.0, min($y, $stockHeight - $height)), 3);
+        $this->elements[$index]['width'] = round($width, 3);
+        $this->elements[$index]['height'] = round($height, 3);
+
+        if (isset($this->elements[$index]['bar_height'])) {
+            $this->elements[$index]['bar_height'] = min((float) $this->elements[$index]['bar_height'], round($height, 3));
+        }
+
+        $this->selectedIndex = $index;
     }
 
     public function selectElement(int $index): void
@@ -343,6 +367,38 @@ new #[Title('Label designer')] class extends Component {
             'stroke_width' => 0.25,
         ];
     }
+
+    /** @return array<string, mixed> */
+    private function newBarcodeElement(?string $symbology): array
+    {
+        $barcodeSymbology = BarcodeSymbology::tryFrom($symbology ?? '') ?? BarcodeSymbology::Code128;
+        $stockWidth = (float) $this->template->labelStock->width;
+        $stockHeight = (float) $this->template->labelStock->height;
+        $isQrCode = $barcodeSymbology === BarcodeSymbology::QrCode;
+        $width = max(0.1, min($isQrCode ? 22.0 : 45.0, $stockWidth - 10.0));
+        $height = max(0.1, min($isQrCode ? 22.0 : 18.0, $stockHeight - 10.0));
+
+        return array_filter([
+            'id' => (string) Str::ulid(),
+            'type' => LabelElementType::Barcode->value,
+            'x' => 5.0,
+            'y' => 5.0,
+            'width' => $width,
+            'height' => $height,
+            'rotation' => 0,
+            'hide_when_empty' => true,
+            'symbology' => $barcodeSymbology->value,
+            'value' => match ($barcodeSymbology) {
+                BarcodeSymbology::UpcA => '036000291452',
+                BarcodeSymbology::QrCode => 'https://example.com',
+                BarcodeSymbology::Code128 => 'ABC-123',
+            },
+            'show_text' => $isQrCode ? null : true,
+            'module_width' => $isQrCode ? null : 0.25,
+            'bar_height' => $isQrCode ? null : max(6.35, $height - 3.5),
+            'error_correction' => $isQrCode ? QrErrorCorrection::Medium->value : null,
+        ], static fn (mixed $value): bool => $value !== null);
+    }
 }; ?>
 
 <div class="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-5">
@@ -374,6 +430,9 @@ new #[Title('Label designer')] class extends Component {
                     <flux:button size="sm" icon="plus" wire:click="addElement('job_identifier')">{{ __('Job ID') }}</flux:button>
                     <flux:button size="sm" icon="plus" wire:click="addElement('line')">{{ __('Line') }}</flux:button>
                     <flux:button size="sm" icon="plus" wire:click="addElement('rectangle')">{{ __('Box') }}</flux:button>
+                    <flux:button size="sm" icon="plus" wire:click="addElement('barcode', 'code128')">{{ __('Code 128') }}</flux:button>
+                    <flux:button size="sm" icon="plus" wire:click="addElement('barcode', 'upc_a')">{{ __('UPC-A') }}</flux:button>
+                    <flux:button size="sm" icon="plus" wire:click="addElement('barcode', 'qr_code')" class="col-span-2">{{ __('QR code') }}</flux:button>
                 </div>
             </div>
 
@@ -386,7 +445,7 @@ new #[Title('Label designer')] class extends Component {
                         'border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-100' => $selectedIndex === $index,
                         'border-zinc-200 hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800' => $selectedIndex !== $index,
                     ])>
-                        <span>{{ match ($element['type']) { 'text' => __('Text'), 'job_identifier' => __('Job identifier'), 'line' => __('Line'), 'rectangle' => __('Rectangle'), default => $element['type'] } }}</span>
+                        <span>{{ match ($element['type']) { 'text' => __('Text'), 'job_identifier' => __('Job identifier'), 'line' => __('Line'), 'rectangle' => __('Rectangle'), 'barcode' => match ($element['symbology'] ?? '') { 'code128' => __('Code 128'), 'upc_a' => __('UPC-A'), 'qr_code' => __('QR code'), default => __('Barcode') }, default => $element['type'] } }}</span>
                         <span class="font-mono text-xs text-zinc-400">{{ $index + 1 }}</span>
                     </button>
                 @endforeach
@@ -425,6 +484,48 @@ new #[Title('Label designer')] class extends Component {
 
         <flux:card class="flex items-center justify-center overflow-auto bg-zinc-100 p-8! dark:bg-zinc-900">
             <div
+                x-data="{
+                    interaction: null,
+                    begin(event, index, mode, x, y, width, height) {
+                        const canvas = this.$refs.canvas;
+                        const element = event.currentTarget.closest('[data-editor-element]');
+                        this.interaction = { index, mode, x, y, width, height, startX: event.clientX, startY: event.clientY, canvas, element };
+                        event.currentTarget.setPointerCapture?.(event.pointerId);
+                    },
+                    move(event) {
+                        if (! this.interaction) return;
+                        const state = this.interaction;
+                        const rect = state.canvas.getBoundingClientRect();
+                        const dx = (event.clientX - state.startX) / rect.width * {{ (float) $this->template->labelStock->width }};
+                        const dy = (event.clientY - state.startY) / rect.height * {{ (float) $this->template->labelStock->height }};
+                        if (state.mode === 'move') {
+                            state.nextX = Math.max(0, Math.min(state.x + dx, {{ (float) $this->template->labelStock->width }} - state.width));
+                            state.nextY = Math.max(0, Math.min(state.y + dy, {{ (float) $this->template->labelStock->height }} - state.height));
+                            state.nextWidth = state.width;
+                            state.nextHeight = state.height;
+                        } else {
+                            state.nextX = state.x;
+                            state.nextY = state.y;
+                            state.nextWidth = Math.max(0.1, Math.min(state.width + dx, {{ (float) $this->template->labelStock->width }} - state.x));
+                            state.nextHeight = Math.max(0.1, Math.min(state.height + dy, {{ (float) $this->template->labelStock->height }} - state.y));
+                        }
+                        state.element.style.left = `${state.nextX / {{ (float) $this->template->labelStock->width }} * 100}%`;
+                        state.element.style.top = `${state.nextY / {{ (float) $this->template->labelStock->height }} * 100}%`;
+                        state.element.style.width = `${state.nextWidth / {{ (float) $this->template->labelStock->width }} * 100}%`;
+                        state.element.style.height = `${state.nextHeight / {{ (float) $this->template->labelStock->height }} * 100}%`;
+                    },
+                    finish() {
+                        if (! this.interaction) return;
+                        const state = this.interaction;
+                        this.interaction = null;
+                        if (state.nextX === undefined) return;
+                        $wire.updateElementGeometry(state.index, state.nextX, state.nextY, state.nextWidth, state.nextHeight);
+                    },
+                }"
+                x-ref="canvas"
+                x-on:pointermove.window="move($event)"
+                x-on:pointerup.window="finish()"
+                x-on:pointercancel.window="finish()"
                 class="relative w-full max-w-[900px] overflow-hidden border border-zinc-300 bg-white shadow-xl dark:border-zinc-600"
                 style="aspect-ratio: {{ (float) $this->template->labelStock->width }} / {{ (float) $this->template->labelStock->height }}; container-type: size;"
                 aria-label="{{ __('Label canvas') }}"
@@ -438,19 +539,37 @@ new #[Title('Label designer')] class extends Component {
                     @endphp
                     <button
                         type="button"
+                        data-editor-element
                         wire:key="canvas-element-{{ $element['id'] }}"
                         wire:click="selectElement({{ $index }})"
-                        @class(['absolute overflow-hidden text-left', 'ring-2 ring-blue-500 ring-offset-1' => $selectedIndex === $index])
+                        x-on:pointerdown.stop="begin($event, {{ $index }}, 'move', {{ (float) $element['x'] }}, {{ (float) $element['y'] }}, {{ (float) $element['width'] }}, {{ (float) $element['height'] }})"
+                        @class(['absolute touch-none overflow-visible text-left select-none', 'z-10 ring-2 ring-blue-500 ring-offset-1' => $selectedIndex === $index])
                         style="left: {{ $left }}%; top: {{ $top }}%; width: {{ $width }}%; height: {{ max($height, 0.3) }}%; transform: rotate({{ $element['rotation'] }}deg); transform-origin: top left;"
                     >
                         @if ($element['type'] === 'rectangle')
                             <span class="block size-full border border-black"></span>
                         @elseif ($element['type'] === 'line')
                             <span class="block w-full border-t border-black"></span>
+                        @elseif ($element['type'] === 'barcode')
+                            <span @class([
+                                'flex size-full items-center justify-center overflow-hidden border border-zinc-500 bg-white text-center font-mono text-[10px] text-black',
+                                'rounded-sm bg-[repeating-linear-gradient(90deg,#000_0,#000_2px,#fff_2px,#fff_4px)]' => ($element['symbology'] ?? '') !== 'qr_code',
+                                'bg-[repeating-conic-gradient(#000_0_25%,#fff_0_50%)] bg-[length:8px_8px]' => ($element['symbology'] ?? '') === 'qr_code',
+                            ])>
+                                <span class="bg-white/90 px-1">{{ strtoupper(str_replace('_', ' ', $element['symbology'])) }}</span>
+                            </span>
                         @else
                             <span class="block size-full text-black" style="font-family: {{ ($element['style']['font_family'] ?? 'sans') === 'monospace' ? 'monospace' : 'sans-serif' }}; font-weight: {{ $element['style']['font_weight'] ?? 'normal' }}; font-size: clamp(8px, {{ ((float) ($element['style']['font_size'] ?? 3) / (float) $this->template->labelStock->height) * 100 }}cqh, 36px); text-align: {{ $element['style']['alignment'] ?? 'left' }};">
                                 {{ $element['type'] === 'job_identifier' ? $this->template->code.' ('.$revisionCode.') | JOB ID' : ($element['value'] ?? '') }}
                             </span>
+                        @endif
+                        @if ($selectedIndex === $index)
+                            <span
+                                role="button"
+                                aria-label="{{ __('Resize element') }}"
+                                x-on:pointerdown.stop.prevent="begin($event, {{ $index }}, 'resize', {{ (float) $element['x'] }}, {{ (float) $element['y'] }}, {{ (float) $element['width'] }}, {{ (float) $element['height'] }})"
+                                class="absolute -right-2 -bottom-2 z-20 size-4 cursor-nwse-resize rounded-sm border-2 border-white bg-blue-600 shadow"
+                            ></span>
                         @endif
                     </button>
                 @endforeach
@@ -484,6 +603,34 @@ new #[Title('Label designer')] class extends Component {
                         <flux:select wire:model.live="elements.{{ $selectedIndex }}.style.font_weight" :label="__('Weight')"><flux:select.option value="normal">{{ __('Normal') }}</flux:select.option><flux:select.option value="bold">{{ __('Bold') }}</flux:select.option></flux:select>
                         <flux:select wire:model.live="elements.{{ $selectedIndex }}.style.alignment" :label="__('Align')"><flux:select.option value="left">{{ __('Left') }}</flux:select.option><flux:select.option value="center">{{ __('Center') }}</flux:select.option><flux:select.option value="right">{{ __('Right') }}</flux:select.option></flux:select>
                     </div>
+                @elseif ($selected['type'] === 'barcode')
+                    <flux:select wire:model.live="elements.{{ $selectedIndex }}.symbology" :label="__('Symbology')">
+                        <flux:select.option value="code128">{{ __('Code 128') }}</flux:select.option>
+                        <flux:select.option value="upc_a">{{ __('UPC-A') }}</flux:select.option>
+                        <flux:select.option value="qr_code">{{ __('QR code') }}</flux:select.option>
+                    </flux:select>
+                    <flux:textarea wire:model.live.debounce.250ms="elements.{{ $selectedIndex }}.value" :label="__('Content')" rows="3" />
+                    <flux:text class="text-xs">{{ __('Content may be literal text, a field placeholder, or a mixture of both.') }}</flux:text>
+                    <flux:switch wire:model.live="elements.{{ $selectedIndex }}.hide_when_empty" :label="__('Hide when empty')" />
+
+                    @if (($selected['symbology'] ?? '') === 'qr_code')
+                        <flux:select wire:model.live="elements.{{ $selectedIndex }}.error_correction" :label="__('Error correction')">
+                            <flux:select.option value="low">{{ __('Low') }}</flux:select.option>
+                            <flux:select.option value="medium">{{ __('Medium') }}</flux:select.option>
+                            <flux:select.option value="quartile">{{ __('Quartile') }}</flux:select.option>
+                            <flux:select.option value="high">{{ __('High') }}</flux:select.option>
+                        </flux:select>
+                        <flux:callout variant="info" icon="information-circle">{{ __('QR codes render as a centered square inside the element bounds.') }}</flux:callout>
+                    @else
+                        <flux:switch wire:model.live="elements.{{ $selectedIndex }}.show_text" :label="__('Show human-readable text')" />
+                        <div class="grid grid-cols-2 gap-4">
+                            <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.module_width" :label="__('Module width (mm)')" type="number" min="0.1" step="0.025" />
+                            <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.bar_height" :label="__('Bar height (mm)')" type="number" min="6.35" step="0.1" />
+                        </div>
+                        @if (($selected['symbology'] ?? '') === 'upc_a')
+                            <flux:callout variant="warning" icon="exclamation-triangle">{{ __('UPC-A width is constrained by its module count and printer resolution. The rendered preview will reject an unreadable size.') }}</flux:callout>
+                        @endif
+                    @endif
                 @else
                     <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.stroke_width" :label="__('Stroke width (mm)')" type="number" min="0.01" step="0.05" />
                 @endif

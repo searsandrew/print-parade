@@ -80,6 +80,44 @@ test('administrators can add select reorder and remove supported elements', func
         ->assertSet('elements.0.type', LabelElementType::JobIdentifier->value);
 });
 
+test('canvas interactions update element geometry and keep it within the stock', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $template = designerTemplate();
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->call('addElement', 'text')
+        ->call('updateElementGeometry', 1, 90.0, 40.0, 30.0, 20.0)
+        ->assertSet('selectedIndex', 1)
+        ->assertSet('elements.1.x', round((float) $template->labelStock->width - 30.0, 3))
+        ->assertSet('elements.1.y', round((float) $template->labelStock->height - 20.0, 3))
+        ->assertSet('elements.1.width', 30.0)
+        ->assertSet('elements.1.height', 20.0);
+});
+
+test('the designer creates supported barcode elements with usable defaults', function (string $symbology, string $value) {
+    $this->actingAs(User::factory()->admin()->create());
+    $template = designerTemplate();
+
+    $component = Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->call('addElement', 'barcode', $symbology)
+        ->assertSet('elements.1.type', LabelElementType::Barcode->value)
+        ->assertSet('elements.1.symbology', $symbology)
+        ->assertSet('elements.1.value', $value)
+        ->call('preview')
+        ->assertHasNoErrors();
+
+    if ($symbology === 'qr_code') {
+        $component->assertSet('elements.1.error_correction', 'medium');
+    } else {
+        $component->assertSet('elements.1.show_text', true)
+            ->assertSet('elements.1.module_width', 0.25);
+    }
+})->with([
+    'Code 128' => ['code128', 'ABC-123'],
+    'UPC-A' => ['upc_a', '036000291452'],
+    'QR code' => ['qr_code', 'https://example.com'],
+]);
+
 test('administrators can define fields for mixed element content', function () {
     $this->actingAs(User::factory()->admin()->create());
     $template = designerTemplate();
