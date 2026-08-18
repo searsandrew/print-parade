@@ -30,7 +30,7 @@ class LabelRevisionCreator
                 'label_template_id' => $template->getKey(),
                 'version' => ((int) $latestVersion) + 1,
                 'revision_code' => $revisionCode,
-                'schema_version' => 1,
+                'schema_version' => LabelDefinition::SCHEMA_VERSION,
                 'definition' => $definition,
                 'created_by' => $creator->getKey(),
                 'published_at' => null,

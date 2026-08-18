@@ -19,8 +19,10 @@ use JsonSerializable;
  */
 final readonly class LabelDefinition implements Arrayable, JsonSerializable
 {
+    public const SCHEMA_VERSION = 2;
+
     /**
-     * @param  array{elements: list<array<string, mixed>>, fields: array<string, array<string, mixed>>}  $definition
+     * @param  array{elements: list<array<string, mixed>>, fields: array<string, array<string, mixed>>, canvas_rotation: int}  $definition
      */
     private function __construct(private array $definition) {}
 
@@ -29,14 +31,15 @@ final readonly class LabelDefinition implements Arrayable, JsonSerializable
      */
     public static function fromArray(array $definition): self
     {
+        $definition['canvas_rotation'] ??= 0;
         self::validate($definition);
 
-        /** @var array{elements: list<array<string, mixed>>, fields: array<string, array<string, mixed>>} $definition */
+        /** @var array{elements: list<array<string, mixed>>, fields: array<string, array<string, mixed>>, canvas_rotation: int} $definition */
         return new self($definition);
     }
 
     /**
-     * @return array{elements: list<array<string, mixed>>, fields: array<string, array<string, mixed>>}
+     * @return array{elements: list<array<string, mixed>>, fields: array<string, array<string, mixed>>, canvas_rotation: int}
      */
     public function toArray(): array
     {
@@ -44,7 +47,7 @@ final readonly class LabelDefinition implements Arrayable, JsonSerializable
     }
 
     /**
-     * @return array{elements: list<array<string, mixed>>, fields: array<string, array<string, mixed>>}
+     * @return array{elements: list<array<string, mixed>>, fields: array<string, array<string, mixed>>, canvas_rotation: int}
      */
     public function jsonSerialize(): array
     {
@@ -73,6 +76,10 @@ final readonly class LabelDefinition implements Arrayable, JsonSerializable
 
         if (! isset($definition['fields']) || ! is_array($definition['fields'])) {
             throw new InvalidArgumentException('The label definition must contain a fields object.');
+        }
+
+        if (! is_int($definition['canvas_rotation']) || LabelRotation::tryFrom($definition['canvas_rotation']) === null) {
+            throw new InvalidArgumentException('The label definition must use a supported canvas rotation.');
         }
 
         $elementIds = [];

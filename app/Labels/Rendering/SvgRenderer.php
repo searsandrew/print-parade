@@ -35,6 +35,8 @@ final readonly class SvgRenderer implements LabelRenderer
             };
         }
 
+        $elements = $this->orientCanvas($elements, $label->canvasRotation(), $context);
+
         return implode("\n", [
             sprintf(
                 '<svg xmlns="http://www.w3.org/2000/svg" width="%smm" height="%smm" viewBox="0 0 %s %s" role="img" aria-label="Label preview" data-preview="approximate" data-dpi="%d">',
@@ -48,6 +50,25 @@ final readonly class SvgRenderer implements LabelRenderer
             ...$elements,
             '</svg>',
         ]);
+    }
+
+    /**
+     * @param  list<string>  $elements
+     * @return list<string>
+     */
+    private function orientCanvas(array $elements, int $rotation, LabelRenderContext $context): array
+    {
+        if ($rotation === 0 || $elements === []) {
+            return $elements;
+        }
+
+        $transform = match ($rotation) {
+            90 => sprintf('translate(%s 0) rotate(90)', self::number($context->widthInMillimeters)),
+            180 => sprintf('translate(%s %s) rotate(180)', self::number($context->widthInMillimeters), self::number($context->heightInMillimeters)),
+            270 => sprintf('translate(0 %s) rotate(270)', self::number($context->heightInMillimeters)),
+        };
+
+        return [sprintf('<g data-canvas-rotation="%d" transform="%s">%s</g>', $rotation, $transform, implode("\n", $elements))];
     }
 
     /**

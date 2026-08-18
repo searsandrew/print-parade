@@ -26,6 +26,8 @@ new #[Title('Label designer')] class extends Component {
 
     public string $revisionCode = '';
 
+    public int $canvasRotation = 0;
+
     /** @var list<array<string, mixed>> */
     public array $elements = [];
 
@@ -74,6 +76,7 @@ new #[Title('Label designer')] class extends Component {
             $definition = $labelTemplateVersion->definition->toArray();
             $this->elements = $definition['elements'];
             $this->fields = $definition['fields'];
+            $this->canvasRotation = $definition['canvas_rotation'];
         }
 
         $this->selectedIndex = $this->elements === [] ? null : 0;
@@ -83,6 +86,42 @@ new #[Title('Label designer')] class extends Component {
     public function template(): LabelTemplate
     {
         return LabelTemplate::query()->with('labelStock')->findOrFail($this->templateId);
+    }
+
+    #[Computed]
+    public function canvasWidth(): float
+    {
+        return in_array($this->canvasRotation, [90, 270], true)
+            ? (float) $this->template->labelStock->height
+            : (float) $this->template->labelStock->width;
+    }
+
+    #[Computed]
+    public function canvasHeight(): float
+    {
+        return in_array($this->canvasRotation, [90, 270], true)
+            ? (float) $this->template->labelStock->width
+            : (float) $this->template->labelStock->height;
+    }
+
+    public function changeCanvasRotation(int $rotation): void
+    {
+        abort_unless(in_array($rotation, [0, 90, 180, 270], true), 422);
+        $this->canvasRotation = $rotation;
+        $selectedIndex = $this->selectedIndex;
+
+        foreach (array_keys($this->elements) as $index) {
+            $element = $this->elements[$index];
+            $this->updateElementGeometry(
+                $index,
+                (float) $element['x'],
+                (float) $element['y'],
+                (float) $element['width'],
+                (float) $element['height'],
+            );
+        }
+
+        $this->selectedIndex = $selectedIndex;
     }
 
     public function addElement(string $type, ?string $symbology = null): void
@@ -109,13 +148,17 @@ new #[Title('Label designer')] class extends Component {
     {
         abort_unless(array_key_exists($index, $this->elements), 404);
 
-        $stockWidth = (float) $this->template->labelStock->width;
-        $stockHeight = (float) $this->template->labelStock->height;
-        $width = max(0.1, min($width, $stockWidth));
-        $height = max(0.1, min($height, $stockHeight));
+        $stockWidth = $this->canvasWidth;
+        $stockHeight = $this->canvasHeight;
+        $rotation = (int) ($this->elements[$index]['rotation'] ?? 0);
+        $isQuarterTurn = in_array($rotation, [90, 270], true);
+        $width = max(0.1, min($width, $isQuarterTurn ? $stockHeight : $stockWidth));
+        $height = max(0.1, min($height, $isQuarterTurn ? $stockWidth : $stockHeight));
+        $boundingWidth = $isQuarterTurn ? $height : $width;
+        $boundingHeight = $isQuarterTurn ? $width : $height;
 
-        $this->elements[$index]['x'] = round(max(0.0, min($x, $stockWidth - $width)), 3);
-        $this->elements[$index]['y'] = round(max(0.0, min($y, $stockHeight - $height)), 3);
+        $this->elements[$index]['x'] = round(max(0.0, min($x, $stockWidth - $boundingWidth)), 3);
+        $this->elements[$index]['y'] = round(max(0.0, min($y, $stockHeight - $boundingHeight)), 3);
         $this->elements[$index]['width'] = round($width, 3);
         $this->elements[$index]['height'] = round($height, 3);
 
@@ -135,8 +178,8 @@ new #[Title('Label designer')] class extends Component {
         $symbology = BarcodeSymbology::from($this->elements[$index]['symbology']);
         $totalModules = $this->barcodeTotalModules($this->elements[$index]);
         $physicalWidth = round($totalModules * $normalizedModuleWidth, 3);
-        $stockWidth = (float) $this->template->labelStock->width;
-        $stockHeight = (float) $this->template->labelStock->height;
+        $stockWidth = $this->canvasWidth;
+        $stockHeight = $this->canvasHeight;
 
         $this->elements[$index]['module_width'] = round($normalizedModuleWidth, 3);
         $this->elements[$index]['width'] = min($physicalWidth, $stockWidth);
@@ -193,6 +236,20 @@ new #[Title('Label designer')] class extends Component {
     {
         abort_unless(array_key_exists($index, $this->elements), 404);
         $this->selectedIndex = $index;
+    }
+
+    public function changeElementRotation(int $index, int $rotation): void
+    {
+        abort_unless(array_key_exists($index, $this->elements), 404);
+
+        $this->elements[$index]['rotation'] = $rotation;
+        $this->updateElementGeometry(
+            $index,
+            (float) $this->elements[$index]['x'],
+            (float) $this->elements[$index]['y'],
+            (float) $this->elements[$index]['width'],
+            (float) $this->elements[$index]['height'],
+        );
     }
 
     public function removeSelectedElement(): void
@@ -265,8 +322,14 @@ new #[Title('Label designer')] class extends Component {
             $field['default'] = $this->castFieldValue($validated['fieldType'], $validated['fieldDefault']);
         }
 
+        $this->normalizeEditorElements();
+
         try {
-            LabelDefinition::fromArray(['elements' => $this->elements, 'fields' => [...$this->fields, $validated['fieldName'] => $field]]);
+            LabelDefinition::fromArray([
+                'elements' => $this->elements,
+                'fields' => [...$this->fields, $validated['fieldName'] => $field],
+                'canvas_rotation' => $this->canvasRotation,
+            ]);
         } catch (\InvalidArgumentException $exception) {
             $this->addError('fieldDefault', $exception->getMessage());
 
@@ -330,6 +393,8 @@ new #[Title('Label designer')] class extends Component {
 
     private function validatedDefinition(LabelDefinitionResolver $resolver, SvgRenderer $renderer): LabelDefinition
     {
+        $this->normalizeEditorElements();
+
         if (! collect($this->elements)->contains(fn (array $element): bool => $element['type'] === LabelElementType::JobIdentifier->value)
             && ! $this->acknowledgeMissingJobIdentifier) {
             throw new \InvalidArgumentException('The job identifier was removed. Acknowledge that choice before creating the revision.');
@@ -338,11 +403,33 @@ new #[Title('Label designer')] class extends Component {
         $definition = LabelDefinition::fromArray([
             'elements' => array_values($this->elements),
             'fields' => $this->fields,
+            'canvas_rotation' => $this->canvasRotation,
         ]);
         $resolved = $resolver->resolve($definition, $this->sampleValues(), ['job_identifier' => "{$this->template->code} ({$this->revisionCode}) | PREVIEW"]);
         $renderer->render($resolved, LabelRenderContext::fromStock($this->template->labelStock, 203));
 
         return $definition;
+    }
+
+    private function normalizeEditorElements(): void
+    {
+        $this->elements = array_map(function (array $element): array {
+            foreach (['x', 'y', 'width', 'height', 'stroke_width', 'module_width', 'bar_height'] as $property) {
+                if (array_key_exists($property, $element) && is_numeric($element[$property])) {
+                    $element[$property] = (float) $element[$property];
+                }
+            }
+
+            if (isset($element['rotation']) && is_numeric($element['rotation'])) {
+                $element['rotation'] = (int) $element['rotation'];
+            }
+
+            if (isset($element['style']['font_size']) && is_numeric($element['style']['font_size'])) {
+                $element['style']['font_size'] = (float) $element['style']['font_size'];
+            }
+
+            return $element;
+        }, $this->elements);
     }
 
     /** @return array<string, mixed> */
@@ -418,7 +505,7 @@ new #[Title('Label designer')] class extends Component {
             'type' => LabelElementType::Text->value,
             'x' => 5.0,
             'y' => 5.0,
-            'width' => max(0.1, min(50.0, (float) $this->template->labelStock->width - 10.0)),
+            'width' => max(0.1, min(50.0, $this->canvasWidth - 10.0)),
             'height' => 8.0,
             'rotation' => 0,
             'hide_when_empty' => true,
@@ -432,7 +519,7 @@ new #[Title('Label designer')] class extends Component {
     {
         $element = $this->newTextElement();
         $element['type'] = LabelElementType::JobIdentifier->value;
-        $element['y'] = max(0.0, (float) $this->template->labelStock->height - 8.0);
+        $element['y'] = max(0.0, $this->canvasHeight - 8.0);
         $element['height'] = 5.0;
         $element['style']['font_size'] = 2.0;
         unset($element['value']);
@@ -448,7 +535,7 @@ new #[Title('Label designer')] class extends Component {
             'type' => LabelElementType::Line->value,
             'x' => 5.0,
             'y' => 15.0,
-            'width' => max(0.1, min(50.0, (float) $this->template->labelStock->width - 10.0)),
+            'width' => max(0.1, min(50.0, $this->canvasWidth - 10.0)),
             'height' => 0.1,
             'rotation' => 0,
             'stroke_width' => 0.25,
@@ -463,8 +550,8 @@ new #[Title('Label designer')] class extends Component {
             'type' => LabelElementType::Rectangle->value,
             'x' => 5.0,
             'y' => 5.0,
-            'width' => max(0.1, min(40.0, (float) $this->template->labelStock->width - 10.0)),
-            'height' => max(0.1, min(20.0, (float) $this->template->labelStock->height - 10.0)),
+            'width' => max(0.1, min(40.0, $this->canvasWidth - 10.0)),
+            'height' => max(0.1, min(20.0, $this->canvasHeight - 10.0)),
             'rotation' => 0,
             'stroke_width' => 0.25,
         ];
@@ -474,8 +561,8 @@ new #[Title('Label designer')] class extends Component {
     private function newBarcodeElement(?string $symbology): array
     {
         $barcodeSymbology = BarcodeSymbology::tryFrom($symbology ?? '') ?? BarcodeSymbology::Code128;
-        $stockWidth = (float) $this->template->labelStock->width;
-        $stockHeight = (float) $this->template->labelStock->height;
+        $stockWidth = $this->canvasWidth;
+        $stockHeight = $this->canvasHeight;
         $isQrCode = $barcodeSymbology === BarcodeSymbology::QrCode;
         $previewValue = match ($barcodeSymbology) {
             BarcodeSymbology::UpcA => '036000291452',
@@ -525,6 +612,12 @@ new #[Title('Label designer')] class extends Component {
             <flux:text class="mt-1">{{ $this->template->labelStock->name }} · {{ number_format((float) $this->template->labelStock->width, 3) }} × {{ number_format((float) $this->template->labelStock->height, 3) }} mm</flux:text>
         </div>
         <div class="flex flex-wrap items-end gap-3">
+            <flux:select wire:model.live.number="canvasRotation" wire:change="changeCanvasRotation($event.target.value)" :label="__('Design orientation')" class="w-48">
+                <flux:select.option value="0">{{ __('Media orientation') }}</flux:select.option>
+                <flux:select.option value="90">{{ __('Rotate canvas 90°') }}</flux:select.option>
+                <flux:select.option value="180">{{ __('Rotate canvas 180°') }}</flux:select.option>
+                <flux:select.option value="270">{{ __('Rotate canvas 270°') }}</flux:select.option>
+            </flux:select>
             <flux:input wire:model="revisionCode" :label="__('Revision (MMYY)')" class="w-36" maxlength="4" />
             <flux:button icon="eye" wire:click="preview">{{ __('Rendered preview') }}</flux:button>
             <flux:button variant="primary" icon="check" wire:click="saveRevision" wire:confirm="{{ __('Create this immutable revision? Future changes will require another revision.') }}">{{ __('Create revision') }}</flux:button>
@@ -597,7 +690,12 @@ new #[Title('Label designer')] class extends Component {
 
         <flux:card x-data="{ zoom: 'actual' }" class="flex min-w-0 flex-col overflow-hidden bg-zinc-100 p-0! dark:bg-zinc-900">
             <div class="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800">
-                <flux:text class="text-xs">{{ __('Approximate physical size') }}</flux:text>
+                <div>
+                    <flux:text class="text-xs">{{ __('Finished-label view · approximate physical size') }}</flux:text>
+                    @if ($canvasRotation !== 0)
+                        <flux:text class="text-xs">{{ __('The complete design rotates :degrees° into the printer feed orientation.', ['degrees' => $canvasRotation]) }}</flux:text>
+                    @endif
+                </div>
                 <flux:button.group>
                     <flux:button size="sm" x-on:click="zoom = 'actual'" x-bind:variant="zoom === 'actual' ? 'primary' : 'ghost'">{{ __('Actual size') }}</flux:button>
                     <flux:button size="sm" x-on:click="zoom = 'fit'" x-bind:variant="zoom === 'fit' ? 'primary' : 'ghost'">{{ __('Fit') }}</flux:button>
@@ -608,38 +706,47 @@ new #[Title('Label designer')] class extends Component {
                 <div
                 x-data="{
                     interaction: null,
-                    begin(event, index, mode, x, y, width, height) {
+                    begin(event, index, mode, x, y, width, height, rotation) {
                         const canvas = this.$refs.canvas;
                         const element = event.currentTarget.closest('[data-editor-element]');
-                        this.interaction = { index, mode, x, y, width, height, startX: event.clientX, startY: event.clientY, canvas, element };
+                        this.interaction = { index, mode, x, y, width, height, rotation, startX: event.clientX, startY: event.clientY, canvas, element };
                         event.currentTarget.setPointerCapture?.(event.pointerId);
                     },
                     move(event) {
                         if (! this.interaction) return;
                         const state = this.interaction;
                         const rect = state.canvas.getBoundingClientRect();
-                        const dx = (event.clientX - state.startX) / rect.width * {{ (float) $this->template->labelStock->width }};
-                        const dy = (event.clientY - state.startY) / rect.height * {{ (float) $this->template->labelStock->height }};
+                        const dx = (event.clientX - state.startX) / rect.width * {{ $this->canvasWidth }};
+                        const dy = (event.clientY - state.startY) / rect.height * {{ $this->canvasHeight }};
+                        const quarterTurn = state.rotation === 90 || state.rotation === 270;
+                        const boundingWidth = quarterTurn ? state.height : state.width;
+                        const boundingHeight = quarterTurn ? state.width : state.height;
                         if (state.mode === 'move') {
-                            state.nextX = Math.max(0, Math.min(state.x + dx, {{ (float) $this->template->labelStock->width }} - state.width));
-                            state.nextY = Math.max(0, Math.min(state.y + dy, {{ (float) $this->template->labelStock->height }} - state.height));
+                            state.nextX = Math.max(0, Math.min(state.x + dx, {{ $this->canvasWidth }} - boundingWidth));
+                            state.nextY = Math.max(0, Math.min(state.y + dy, {{ $this->canvasHeight }} - boundingHeight));
                             state.nextWidth = state.width;
                             state.nextHeight = state.height;
                         } else if (state.mode === 'height') {
                             state.nextX = state.x;
                             state.nextY = state.y;
                             state.nextWidth = state.width;
-                            state.nextHeight = Math.max(0.1, Math.min(state.height + dy, {{ (float) $this->template->labelStock->height }} - state.y));
+                            state.nextHeight = Math.max(0.1, Math.min(state.height + dy, {{ $this->canvasHeight }} - state.y));
                         } else {
                             state.nextX = state.x;
                             state.nextY = state.y;
-                            state.nextWidth = Math.max(0.1, Math.min(state.width + dx, {{ (float) $this->template->labelStock->width }} - state.x));
-                            state.nextHeight = Math.max(0.1, Math.min(state.height + dy, {{ (float) $this->template->labelStock->height }} - state.y));
+                            state.nextWidth = quarterTurn
+                                ? Math.max(0.1, Math.min(state.width + dy, {{ $this->canvasHeight }} - state.y))
+                                : Math.max(0.1, Math.min(state.width + dx, {{ $this->canvasWidth }} - state.x));
+                            state.nextHeight = quarterTurn
+                                ? Math.max(0.1, Math.min(state.height + dx, {{ $this->canvasWidth }} - state.x))
+                                : Math.max(0.1, Math.min(state.height + dy, {{ $this->canvasHeight }} - state.y));
                         }
-                        state.element.style.left = `${state.nextX / {{ (float) $this->template->labelStock->width }} * 100}%`;
-                        state.element.style.top = `${state.nextY / {{ (float) $this->template->labelStock->height }} * 100}%`;
-                        state.element.style.width = `${state.nextWidth / {{ (float) $this->template->labelStock->width }} * 100}%`;
-                        state.element.style.height = `${state.nextHeight / {{ (float) $this->template->labelStock->height }} * 100}%`;
+                        state.element.style.left = `${state.nextX / {{ $this->canvasWidth }} * 100}%`;
+                        state.element.style.top = `${state.nextY / {{ $this->canvasHeight }} * 100}%`;
+                        const displayWidth = quarterTurn ? state.nextHeight : state.nextWidth;
+                        const displayHeight = quarterTurn ? state.nextWidth : state.nextHeight;
+                        state.element.style.width = `${displayWidth / {{ $this->canvasWidth }} * 100}%`;
+                        state.element.style.height = `${displayHeight / {{ $this->canvasHeight }} * 100}%`;
                     },
                     finish() {
                         if (! this.interaction) return;
@@ -654,29 +761,35 @@ new #[Title('Label designer')] class extends Component {
                 x-on:pointerup.window="finish()"
                 x-on:pointercancel.window="finish()"
                 x-bind:style="{
-                    width: zoom === 'fit' ? '100%' : (zoom === 'double' ? {{ (float) $this->template->labelStock->width * 2 }} : {{ (float) $this->template->labelStock->width }}) + 'mm',
+                    width: zoom === 'fit' ? '100%' : (zoom === 'double' ? {{ $this->canvasWidth * 2 }} : {{ $this->canvasWidth }}) + 'mm',
                     maxWidth: zoom === 'fit' ? '100%' : 'none',
                 }"
                 class="relative shrink-0 overflow-hidden border border-zinc-300 bg-white shadow-xl dark:border-zinc-600"
-                style="width: {{ (float) $this->template->labelStock->width }}mm; aspect-ratio: {{ (float) $this->template->labelStock->width }} / {{ (float) $this->template->labelStock->height }}; container-type: size;"
+                style="width: {{ $this->canvasWidth }}mm; aspect-ratio: {{ $this->canvasWidth }} / {{ $this->canvasHeight }}; container-type: size;"
                 aria-label="{{ __('Label canvas') }}"
             >
                 @foreach ($elements as $index => $element)
                     @php
-                        $left = ((float) $element['x'] / (float) $this->template->labelStock->width) * 100;
-                        $top = ((float) $element['y'] / (float) $this->template->labelStock->height) * 100;
-                        $width = ((float) $element['width'] / (float) $this->template->labelStock->width) * 100;
-                        $height = ((float) $element['height'] / (float) $this->template->labelStock->height) * 100;
+                        $left = ((float) $element['x'] / $this->canvasWidth) * 100;
+                        $top = ((float) $element['y'] / $this->canvasHeight) * 100;
+                        $isQuarterTurn = in_array((int) $element['rotation'], [90, 270], true);
+                        $boundingWidth = $isQuarterTurn ? (float) $element['height'] : (float) $element['width'];
+                        $boundingHeight = $isQuarterTurn ? (float) $element['width'] : (float) $element['height'];
+                        $displayWidth = ($boundingWidth / $this->canvasWidth) * 100;
+                        $displayHeight = ($boundingHeight / $this->canvasHeight) * 100;
+                        $innerWidth = ((float) $element['width'] / $boundingWidth) * 100;
+                        $innerHeight = ((float) $element['height'] / $boundingHeight) * 100;
                     @endphp
                     <button
                         type="button"
                         data-editor-element
                         wire:key="canvas-element-{{ $element['id'] }}"
                         wire:click="selectElement({{ $index }})"
-                        x-on:pointerdown.stop="begin($event, {{ $index }}, 'move', {{ (float) $element['x'] }}, {{ (float) $element['y'] }}, {{ (float) $element['width'] }}, {{ (float) $element['height'] }})"
+                        x-on:pointerdown.stop="begin($event, {{ $index }}, 'move', {{ (float) $element['x'] }}, {{ (float) $element['y'] }}, {{ (float) $element['width'] }}, {{ (float) $element['height'] }}, {{ (int) $element['rotation'] }})"
                         @class(['absolute touch-none overflow-visible text-left select-none', 'z-10 ring-2 ring-blue-500 ring-offset-1' => $selectedIndex === $index])
-                        style="left: {{ $left }}%; top: {{ $top }}%; width: {{ $width }}%; height: {{ max($height, 0.3) }}%; transform: rotate({{ $element['rotation'] }}deg); transform-origin: top left;"
+                        style="left: {{ $left }}%; top: {{ $top }}%; width: {{ $displayWidth }}%; height: {{ max($displayHeight, 0.3) }}%;"
                     >
+                        <span class="absolute left-1/2 top-1/2 block" style="width: {{ $innerWidth }}%; height: {{ max($innerHeight, 0.3) }}%; transform: translate(-50%, -50%) rotate({{ $element['rotation'] }}deg);">
                         @if ($element['type'] === 'rectangle')
                             <span class="block size-full border border-black"></span>
                         @elseif ($element['type'] === 'line')
@@ -700,15 +813,16 @@ new #[Title('Label designer')] class extends Component {
                                 @endif
                             </span>
                         @else
-                            <span class="block size-full text-black" style="font-family: {{ ($element['style']['font_family'] ?? 'sans') === 'monospace' ? 'monospace' : 'sans-serif' }}; font-weight: {{ $element['style']['font_weight'] ?? 'normal' }}; font-size: clamp(8px, {{ ((float) ($element['style']['font_size'] ?? 3) / (float) $this->template->labelStock->height) * 100 }}cqh, 36px); text-align: {{ $element['style']['alignment'] ?? 'left' }};">
+                            <span class="block size-full text-black" style="font-family: {{ ($element['style']['font_family'] ?? 'sans') === 'monospace' ? 'monospace' : 'sans-serif' }}; font-weight: {{ $element['style']['font_weight'] ?? 'normal' }}; font-size: clamp(8px, {{ ((float) ($element['style']['font_size'] ?? 3) / $this->canvasHeight) * 100 }}cqh, 36px); text-align: {{ $element['style']['alignment'] ?? 'left' }};">
                                 {{ $element['type'] === 'job_identifier' ? $this->template->code.' ('.$revisionCode.') | JOB ID' : ($element['value'] ?? '') }}
                             </span>
                         @endif
+                        </span>
                         @if ($selectedIndex === $index && (($element['type'] ?? '') !== 'barcode' || ($element['symbology'] ?? '') !== 'qr_code'))
                             <span
                                 role="button"
                                 aria-label="{{ __('Resize element') }}"
-                                x-on:pointerdown.stop.prevent="begin($event, {{ $index }}, '{{ ($element['type'] ?? '') === 'barcode' ? 'height' : 'resize' }}', {{ (float) $element['x'] }}, {{ (float) $element['y'] }}, {{ (float) $element['width'] }}, {{ (float) $element['height'] }})"
+                                x-on:pointerdown.stop.prevent="begin($event, {{ $index }}, '{{ ($element['type'] ?? '') === 'barcode' ? 'height' : 'resize' }}', {{ (float) $element['x'] }}, {{ (float) $element['y'] }}, {{ (float) $element['width'] }}, {{ (float) $element['height'] }}, {{ (int) $element['rotation'] }})"
                                 @class(['absolute -right-2 -bottom-2 z-20 size-4 rounded-sm border-2 border-white bg-blue-600 shadow', 'cursor-ns-resize' => ($element['type'] ?? '') === 'barcode', 'cursor-nwse-resize' => ($element['type'] ?? '') !== 'barcode'])
                             ></span>
                         @endif
@@ -724,13 +838,14 @@ new #[Title('Label designer')] class extends Component {
                 <flux:text>{{ __('Select an element on the canvas or in the element list.') }}</flux:text>
             @else
                 @php($selected = $elements[$selectedIndex])
+                <div wire:key="element-properties-{{ $selected['id'] }}" class="space-y-5">
                 <div class="grid grid-cols-2 gap-4">
                     <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.x" :label="__('X (mm)')" type="number" min="0" step="0.1" />
                     <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.y" :label="__('Y (mm)')" type="number" min="0" step="0.1" />
                     <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.width" :label="__('Width (mm)')" type="number" min="0.1" step="0.1" :disabled="$selected['type'] === 'barcode'" />
                     <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.height" :label="__('Height (mm)')" type="number" min="0.1" step="0.1" :disabled="$selected['type'] === 'barcode' && ($selected['symbology'] ?? '') === 'qr_code'" />
                 </div>
-                <flux:select wire:model.live.number="elements.{{ $selectedIndex }}.rotation" :label="__('Rotation')" :disabled="$selected['type'] === 'barcode'">
+                <flux:select wire:model.live.number="elements.{{ $selectedIndex }}.rotation" wire:change="changeElementRotation({{ $selectedIndex }}, $event.target.value)" :label="__('Rotation')" :disabled="$selected['type'] === 'barcode'">
                     <flux:select.option value="0">0°</flux:select.option><flux:select.option value="90">90°</flux:select.option><flux:select.option value="180">180°</flux:select.option><flux:select.option value="270">270°</flux:select.option>
                 </flux:select>
 
@@ -788,6 +903,7 @@ new #[Title('Label designer')] class extends Component {
                 @else
                     <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.stroke_width" :label="__('Stroke width (mm)')" type="number" min="0.01" step="0.05" />
                 @endif
+                </div>
             @endif
 
             @if (! collect($elements)->contains(fn ($element) => $element['type'] === 'job_identifier'))
@@ -815,7 +931,7 @@ new #[Title('Label designer')] class extends Component {
 
     <flux:modal name="designer-preview" class="md:w-4xl">
         <div class="space-y-5">
-            <div><flux:heading size="lg">{{ $this->template->code }} ({{ $revisionCode }})</flux:heading><flux:text>{{ __('Renderer-validated preview at 203 DPI with sample values.') }}</flux:text></div>
+            <div><flux:heading size="lg">{{ $this->template->code }} ({{ $revisionCode }})</flux:heading><flux:text>{{ __('Printer-media preview at 203 DPI with sample values. The feed direction runs from top to bottom.') }}</flux:text></div>
             <div class="flex min-h-80 items-center justify-center overflow-auto rounded-lg bg-zinc-100 p-6 dark:bg-zinc-800 [&>svg]:max-h-[60vh] [&>svg]:max-w-full">{!! $previewSvg !!}</div>
             <div class="flex justify-end"><flux:modal.close><flux:button variant="primary">{{ __('Close') }}</flux:button></flux:modal.close></div>
         </div>

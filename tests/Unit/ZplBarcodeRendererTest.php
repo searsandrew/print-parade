@@ -84,12 +84,16 @@ test('qr codes fail rather than using modules below the scan-safe minimum', func
     ]));
 })->throws(InvalidArgumentException::class, 'too narrow for a scan-safe barcode module width');
 
-test('rotated barcode output fails until its anchoring is implemented safely', function () {
-    renderBarcode(zplBarcodeElement('upc_a', '036000291452', [
+test('rotated barcodes use orientation aware field origins', function () {
+    $zpl = renderBarcode(zplBarcodeElement('upc_a', '036000291452', [
         'rotation' => 90,
-        'width' => 20,
+        'width' => 38,
     ]));
-})->throws(InvalidArgumentException::class, 'uses barcode rotation that is not implemented safely yet');
+
+    expect($zpl)
+        ->toContain('^BUR,')
+        ->toContain('^A0R,');
+});
 
 function renderBarcode(array $element): string
 {

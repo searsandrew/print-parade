@@ -43,6 +43,7 @@ test('a label template belongs to a stock and has versioned definitions', functi
         'revision_code' => '0826',
         'definition' => $definition,
     ]);
+    $definition['canvas_rotation'] = 0;
 
     expect($template->labelStock->is($stock))->toBeTrue()
         ->and($template->code)->toBe('CMM023')

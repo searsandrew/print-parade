@@ -17,6 +17,7 @@ final readonly class ResolvedLabelDefinition implements Arrayable, JsonSerializa
     public function __construct(
         private array $elements,
         private array $values,
+        private int $canvasRotation = 0,
     ) {}
 
     /**
@@ -35,19 +36,25 @@ final readonly class ResolvedLabelDefinition implements Arrayable, JsonSerializa
         return $this->values;
     }
 
+    public function canvasRotation(): int
+    {
+        return $this->canvasRotation;
+    }
+
     /**
-     * @return array{elements: list<array<string, mixed>>, values: array<string, scalar|null>}
+     * @return array{elements: list<array<string, mixed>>, values: array<string, scalar|null>, canvas_rotation: int}
      */
     public function toArray(): array
     {
         return [
             'elements' => $this->elements,
             'values' => $this->values,
+            'canvas_rotation' => $this->canvasRotation,
         ];
     }
 
     /**
-     * @return array{elements: list<array<string, mixed>>, values: array<string, scalar|null>}
+     * @return array{elements: list<array<string, mixed>>, values: array<string, scalar|null>, canvas_rotation: int}
      */
     public function jsonSerialize(): array
     {

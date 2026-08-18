@@ -38,8 +38,21 @@ test('a printer neutral label definition can be created and serialized', functio
 
     $labelDefinition = LabelDefinition::fromArray($definition);
 
+    $definition['canvas_rotation'] = 0;
+
     expect($labelDefinition->toArray())->toBe($definition)
         ->and($labelDefinition->jsonSerialize())->toBe($definition);
+});
+
+test('a definition stores its finished-label canvas rotation', function () {
+    $definition = LabelDefinition::fromArray([
+        'elements' => [],
+        'fields' => [],
+        'canvas_rotation' => 90,
+    ]);
+
+    expect($definition->toArray()['canvas_rotation'])->toBe(90)
+        ->and($definition->resolve([], [])->canvasRotation())->toBe(90);
 });
 
 test('element coordinates and dimensions are required in millimeters', function (array $overrides) {

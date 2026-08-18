@@ -46,6 +46,19 @@ test('semantic fonts rotation alignment and bold weight map to zpl', function ()
         ->toContain('^FDCentered text^FS');
 });
 
+test('a rotated design canvas maps elements into media coordinates', function () {
+    $element = zplTextElement(['x' => 5, 'y' => 5, 'width' => 30, 'height' => 8]);
+
+    $zpl = (new ZplRenderer)->render(
+        new ResolvedLabelDefinition([$element], [], 90),
+        new LabelRenderContext(101.6, 50.8, 203),
+    );
+
+    expect($zpl)
+        ->toContain('^FO708,40')
+        ->toContain('^A0R,');
+});
+
 test('text field data is escaped and bold text is overprinted by one dot', function () {
     $element = zplTextElement([
         'value' => 'A^B~C\\D',

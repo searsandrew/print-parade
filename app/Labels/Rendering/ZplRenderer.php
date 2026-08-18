@@ -15,11 +15,13 @@ final readonly class ZplRenderer implements LabelRenderer
     public function __construct(
         private LabelLayoutPreflight $preflight = new LabelLayoutPreflight,
         private ZplBarcodeRenderer $barcodeRenderer = new ZplBarcodeRenderer,
+        private MediaCoordinateTransformer $mediaTransformer = new MediaCoordinateTransformer,
     ) {}
 
     public function render(ResolvedLabelDefinition $label, LabelRenderContext $context): string
     {
         $this->preflight->assertFits($label, $context);
+        $label = $this->mediaTransformer->transform($label, $context);
 
         $commands = [
             '^XA',

@@ -10,6 +10,13 @@ final class LabelLayoutPreflight
 {
     public function assertFits(ResolvedLabelDefinition $label, LabelRenderContext $context): void
     {
+        $canvasWidth = in_array($label->canvasRotation(), [90, 270], true)
+            ? $context->heightInMillimeters
+            : $context->widthInMillimeters;
+        $canvasHeight = in_array($label->canvasRotation(), [90, 270], true)
+            ? $context->widthInMillimeters
+            : $context->heightInMillimeters;
+
         foreach ($label->elements() as $element) {
             $rotation = LabelRotation::from($element['rotation']);
             $width = (float) $element['width'];
@@ -19,8 +26,8 @@ final class LabelLayoutPreflight
                 [$width, $height] = [$height, $width];
             }
 
-            $rightOverflow = (float) $element['x'] + $width - $context->widthInMillimeters;
-            $bottomOverflow = (float) $element['y'] + $height - $context->heightInMillimeters;
+            $rightOverflow = (float) $element['x'] + $width - $canvasWidth;
+            $bottomOverflow = (float) $element['y'] + $height - $canvasHeight;
 
             if ($rightOverflow > 0) {
                 throw new InvalidArgumentException(sprintf(

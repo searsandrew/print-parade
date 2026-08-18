@@ -78,6 +78,29 @@ test('preview text is escaped as xml content', function () {
         ->not->toContain('<unsafe & text>');
 });
 
+test('a rotated design canvas is transformed into media coordinates as a group', function () {
+    $element = [
+        'id' => '01K00000000000000000000000',
+        'type' => 'text',
+        'x' => 5,
+        'y' => 5,
+        'width' => 30,
+        'height' => 8,
+        'rotation' => 0,
+        'value' => 'Finished label bottom',
+        'style' => ['font_family' => 'sans', 'font_size' => 4, 'font_weight' => 'normal', 'alignment' => 'left'],
+    ];
+
+    $svg = (new SvgRenderer)->render(
+        new ResolvedLabelDefinition([$element], [], 90),
+        new LabelRenderContext(101.6, 50.8, 203),
+    );
+
+    expect($svg)
+        ->toContain('data-canvas-rotation="90"')
+        ->toContain('transform="translate(101.6 0) rotate(90)"');
+});
+
 function svgBarcodeElement(array $overrides = []): array
 {
     return [

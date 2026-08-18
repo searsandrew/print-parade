@@ -19,10 +19,6 @@ final class ZplBarcodeRenderer
      */
     public function render(array $element, LabelRenderContext $context): string
     {
-        if (LabelRotation::from($element['rotation']) !== LabelRotation::None) {
-            throw new InvalidArgumentException("Element {$element['id']} uses barcode rotation that is not implemented safely yet.");
-        }
-
         return match (BarcodeSymbology::from($element['symbology'])) {
             BarcodeSymbology::Code128 => $this->renderCode128($element, $context),
             BarcodeSymbology::UpcA => $this->renderUpcA($element, $context),
@@ -42,10 +38,12 @@ final class ZplBarcodeRenderer
         }
 
         $moduleWidth = $this->linearModuleWidth($element, $context, self::UPC_A_TOTAL_MODULES);
-        [$originY, $barHeight, $textCommand] = $this->linearVerticalLayout($element, $context, $value);
-        $originX = $context->millimetersToDots($element['x']) + (9 * $moduleWidth);
+        [$barY, $barHeight, $textY] = $this->linearVerticalLayout($element, $context);
+        [$originX, $originY] = $this->orientedOrigin($element, $context, 9 * $moduleWidth, $barY);
+        $orientation = $this->orientation($element);
+        $textCommand = $this->humanReadableText($element, $context, $value, $textY);
 
-        return "^BY{$moduleWidth},2,{$barHeight}^FO{$originX},{$originY}^BUN,{$barHeight},N,N^FD".substr($value, 0, 11)."^FS{$textCommand}";
+        return "^BY{$moduleWidth},2,{$barHeight}^FO{$originX},{$originY}^BU{$orientation},{$barHeight},N,N^FD".substr($value, 0, 11)."^FS{$textCommand}";
     }
 
     /**
@@ -61,11 +59,13 @@ final class ZplBarcodeRenderer
 
         $totalModules = (11 * strlen($value)) + 55;
         $moduleWidth = $this->linearModuleWidth($element, $context, $totalModules);
-        [$originY, $barHeight, $textCommand] = $this->linearVerticalLayout($element, $context, $value);
-        $originX = $context->millimetersToDots($element['x']) + (10 * $moduleWidth);
+        [$barY, $barHeight, $textY] = $this->linearVerticalLayout($element, $context);
+        [$originX, $originY] = $this->orientedOrigin($element, $context, 10 * $moduleWidth, $barY);
+        $orientation = $this->orientation($element);
+        $textCommand = $this->humanReadableText($element, $context, $value, $textY);
         $encodedValue = $this->escapeFieldData('>:'.$value);
 
-        return "^BY{$moduleWidth},2,{$barHeight}^FO{$originX},{$originY}^BCN,{$barHeight},N,N,N,A^FH\\^FD{$encodedValue}^FS{$textCommand}";
+        return "^BY{$moduleWidth},2,{$barHeight}^FO{$originX},{$originY}^BC{$orientation},{$barHeight},N,N,N,A^FH\\^FD{$encodedValue}^FS{$textCommand}";
     }
 
     /**
@@ -94,11 +94,11 @@ final class ZplBarcodeRenderer
         );
         $moduleWidth = $this->moduleWidth($element, $context, $boxDots, $totalModules, 100);
         $quietZone = 4 * $moduleWidth;
-        $x = $context->millimetersToDots($element['x']) + $quietZone;
-        $y = $context->millimetersToDots($element['y']) + $quietZone;
+        [$x, $y] = $this->orientedOrigin($element, $context, $quietZone, $quietZone);
+        $orientation = $this->orientation($element);
         $data = $this->escapeFieldData($errorCorrection->zplValue().'A,'.$value);
 
-        return "^FO{$x},{$y}^BQN,2,{$moduleWidth},{$errorCorrection->zplValue()},7^FH\\^FD{$data}^FS";
+        return "^FO{$x},{$y}^BQ{$orientation},2,{$moduleWidth},{$errorCorrection->zplValue()},7^FH\\^FD{$data}^FS";
     }
 
     /**
@@ -139,14 +139,12 @@ final class ZplBarcodeRenderer
 
     /**
      * @param  array<string, mixed>  $element
-     * @return array{int, int, string}
+     * @return array{int, int, int|null}
      */
-    private function linearVerticalLayout(array $element, LabelRenderContext $context, string $humanReadableValue): array
+    private function linearVerticalLayout(array $element, LabelRenderContext $context): array
     {
         $showText = $element['show_text'] ?? true;
-        $elementTop = $context->millimetersToDots($element['y']);
         $elementHeight = $context->millimetersToDots($element['height']);
-        $elementBottom = $elementTop + $elementHeight;
         $textHeight = $showText ? max(12, $context->millimetersToDots(3.0)) : 0;
         $gap = $showText ? max(1, $context->millimetersToDots(0.5)) : 0;
         $availableBarHeight = $elementHeight - $textHeight - $gap;
@@ -163,19 +161,56 @@ final class ZplBarcodeRenderer
             throw new InvalidArgumentException("Element {$element['id']} barcode height does not leave room for its human-readable text.");
         }
 
-        $originY = $elementBottom - $textHeight - $gap - $barHeight;
-        $textCommand = '';
+        $originY = $elementHeight - $textHeight - $gap - $barHeight;
 
-        if ($showText) {
-            $x = $context->millimetersToDots($element['x']);
-            $textY = $elementBottom - $textHeight;
-            $width = $context->millimetersToDots($element['width']);
-            $fontWidth = max(1, (int) round($textHeight * 0.6));
-            $text = $this->escapeFieldData($humanReadableValue);
-            $textCommand = "^FO{$x},{$textY}^A0N,{$textHeight},{$fontWidth}^FB{$width},1,0,C,0^FH\\^FD{$text}^FS";
+        return [$originY, $barHeight, $showText ? $elementHeight - $textHeight : null];
+    }
+
+    /** @param array<string, mixed> $element */
+    private function humanReadableText(array $element, LabelRenderContext $context, string $value, ?int $textY): string
+    {
+        if ($textY === null) {
+            return '';
         }
 
-        return [$originY, $barHeight, $textCommand];
+        $textHeight = max(12, $context->millimetersToDots(3.0));
+        $fontWidth = max(1, (int) round($textHeight * 0.6));
+        $width = $context->millimetersToDots($element['width']);
+        [$x, $y] = $this->orientedOrigin($element, $context, 0, $textY);
+        $orientation = $this->orientation($element);
+        $text = $this->escapeFieldData($value);
+
+        return "^FO{$x},{$y}^A0{$orientation},{$textHeight},{$fontWidth}^FB{$width},1,0,C,0^FH\\^FD{$text}^FS";
+    }
+
+    /**
+     * @param  array<string, mixed>  $element
+     * @return array{int, int}
+     */
+    private function orientedOrigin(array $element, LabelRenderContext $context, int $localX, int $localY): array
+    {
+        $x = $context->millimetersToDots($element['x']);
+        $y = $context->millimetersToDots($element['y']);
+        $width = $context->millimetersToDots($element['width']);
+        $height = $context->millimetersToDots($element['height']);
+
+        return match (LabelRotation::from($element['rotation'])) {
+            LabelRotation::None => [$x + $localX, $y + $localY],
+            LabelRotation::Clockwise90 => [$x + $height - $localY, $y + $localX],
+            LabelRotation::Clockwise180 => [$x + $width - $localX, $y + $height - $localY],
+            LabelRotation::Clockwise270 => [$x + $localY, $y + $width - $localX],
+        };
+    }
+
+    /** @param array<string, mixed> $element */
+    private function orientation(array $element): string
+    {
+        return match (LabelRotation::from($element['rotation'])) {
+            LabelRotation::None => 'N',
+            LabelRotation::Clockwise90 => 'R',
+            LabelRotation::Clockwise180 => 'I',
+            LabelRotation::Clockwise270 => 'B',
+        };
     }
 
     private function qrVersionForByteLength(int $length, mixed $elementId): int

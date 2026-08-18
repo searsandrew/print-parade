@@ -53,7 +53,7 @@ final class LabelDefinitionResolver
             $elements[] = $element;
         }
 
-        return new ResolvedLabelDefinition($elements, $values);
+        return new ResolvedLabelDefinition($elements, $values, $rawDefinition['canvas_rotation'] ?? 0);
     }
 
     /**

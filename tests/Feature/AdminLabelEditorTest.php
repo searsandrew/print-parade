@@ -1,5 +1,6 @@
 <?php
 
+use App\Labels\Definitions\LabelDefinition;
 use App\Labels\Enums\LabelElementType;
 use App\Labels\Examples\CalibrationLabel;
 use App\Models\LabelStock;
@@ -32,10 +33,30 @@ test('a new design starts with the required job identifier selected', function (
 
     Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
         ->assertSet('selectedIndex', 0)
+        ->assertSet('canvasRotation', 0)
         ->assertSet('elements.0.type', LabelElementType::JobIdentifier->value)
         ->assertSet('fields', [])
         ->assertSee('aspect-ratio:', false)
         ->assertSee('maxWidth:', false);
+});
+
+test('the designer can use a finished-label orientation independent of media feed', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $template = designerTemplate();
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->call('changeCanvasRotation', 90)
+        ->assertSet('canvasRotation', 90)
+        ->assertSet('canvasWidth', (float) $template->labelStock->height)
+        ->assertSet('canvasHeight', (float) $template->labelStock->width)
+        ->set('revisionCode', '0826')
+        ->call('saveRevision')
+        ->assertHasNoErrors();
+
+    $version = $template->versions()->sole();
+
+    expect($version->definition->toArray()['canvas_rotation'])->toBe(90)
+        ->and($version->schema_version)->toBe(LabelDefinition::SCHEMA_VERSION);
 });
 
 test('an editor revision can begin from an existing immutable definition', function () {
@@ -96,6 +117,25 @@ test('canvas interactions update element geometry and keep it within the stock',
         ->assertSet('elements.1.height', 20.0);
 });
 
+test('quarter turn elements move within their rotated bounding box', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $template = designerTemplate();
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->call('addElement', 'text')
+        ->call('changeElementRotation', 1, 90)
+        ->set('elements.1.style.font_size', 6.0)
+        ->call('updateElementGeometry', 1, 90.0, 0.0, 50.0, 8.0)
+        ->assertSet('elements.1.rotation', 90)
+        ->assertSet('elements.1.style.font_size', 6.0)
+        ->assertSet('elements.1.x', 90.0)
+        ->assertSet('elements.1.y', 0.0)
+        ->assertSet('elements.0.rotation', 0)
+        ->assertSet('elements.0.style.font_size', 2.0)
+        ->assertSee('translate(-50%, -50%) rotate(90deg)', false)
+        ->assertSee('Resize element');
+});
+
 test('the designer creates supported barcode elements with usable defaults', function (string $symbology, string $value) {
     $this->actingAs(User::factory()->admin()->create());
     $template = designerTemplate();
@@ -146,6 +186,23 @@ test('administrators can define fields for mixed element content', function () {
         ->assertHasNoErrors()
         ->assertSet('fields.part_number.label', 'Part number')
         ->assertSet('fields.part_number.required', true);
+});
+
+test('field creation normalizes numeric element values received from browser controls', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $template = designerTemplate();
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->set('elements.0.rotation', '0')
+        ->set('elements.0.x', '5.000')
+        ->set('elements.0.style.font_size', '2.000')
+        ->set('fieldName', 'part_number')
+        ->set('fieldLabel', 'Part Number')
+        ->call('saveField')
+        ->assertHasNoErrors()
+        ->assertSet('elements.0.rotation', 0)
+        ->assertSet('elements.0.x', 5.0)
+        ->assertSet('fields.part_number.label', 'Part Number');
 });
 
 test('a field cannot be removed while an element references it', function () {
