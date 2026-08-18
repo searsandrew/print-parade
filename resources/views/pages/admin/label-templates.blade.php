@@ -2,13 +2,13 @@
 
 use App\Labels\Definitions\LabelDefinition;
 use App\Labels\Rendering\LabelPreviewService;
+use App\Labels\Templates\LabelRevisionCreator;
 use App\Models\LabelStock;
 use App\Models\LabelTemplate;
 use App\Models\LabelTemplateVersion;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
@@ -157,7 +157,7 @@ new #[Title('Templates & revisions')] class extends Component {
         Flux::modal('revision-form')->show();
     }
 
-    public function saveRevision(): void
+    public function saveRevision(LabelRevisionCreator $revisionCreator): void
     {
         $validated = $this->validate([
             'revisionTemplateId' => ['required', 'integer', 'exists:label_templates,id'],
@@ -181,26 +181,12 @@ new #[Title('Templates & revisions')] class extends Component {
             return;
         }
 
-        DB::transaction(function () use ($validated, $definition): void {
-            LabelTemplate::query()
-                ->whereKey($validated['revisionTemplateId'])
-                ->lockForUpdate()
-                ->firstOrFail();
-
-            $latestVersion = LabelTemplateVersion::query()
-                ->where('label_template_id', $validated['revisionTemplateId'])
-                ->max('version');
-
-            LabelTemplateVersion::query()->create([
-                'label_template_id' => $validated['revisionTemplateId'],
-                'version' => ((int) $latestVersion) + 1,
-                'revision_code' => $validated['revisionCode'],
-                'schema_version' => 1,
-                'definition' => $definition,
-                'created_by' => Auth::id(),
-                'published_at' => null,
-            ]);
-        });
+        $revisionCreator->create(
+            LabelTemplate::query()->findOrFail($validated['revisionTemplateId']),
+            $validated['revisionCode'],
+            $definition,
+            Auth::user(),
+        );
 
         $this->resetRevisionForm();
         unset($this->templates);
@@ -296,8 +282,9 @@ new #[Title('Templates & revisions')] class extends Component {
 
                 <div class="flex flex-wrap gap-2">
                     <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="editTemplate({{ $template->id }})">{{ __('Edit') }}</flux:button>
-                    <flux:button size="sm" icon="plus" wire:click="createRevision({{ $template->id }}, {{ $latestVersion?->id ?? 'null' }})">
-                        {{ $latestVersion ? __('New revision') : __('First revision') }}
+                    <flux:button size="sm" variant="ghost" icon="code-bracket" wire:click="createRevision({{ $template->id }}, {{ $latestVersion?->id ?? 'null' }})">{{ __('JSON') }}</flux:button>
+                    <flux:button size="sm" icon="paint-brush" :href="route('admin.label-template-editor', ['labelTemplate' => $template, 'labelTemplateVersion' => $latestVersion])" wire:navigate>
+                        {{ $latestVersion ? __('New revision') : __('Design first revision') }}
                     </flux:button>
                 </div>
             </div>
