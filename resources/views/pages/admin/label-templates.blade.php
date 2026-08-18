@@ -52,6 +52,7 @@ new #[Title('Templates & revisions')] class extends Component {
         return LabelTemplate::query()
             ->with([
                 'labelStock',
+                'publishedVersion',
                 'versions' => fn ($query) => $query->with('creator')->orderByDesc('version'),
                 'drafts' => fn ($query) => $query->where('user_id', Auth::id()),
             ])
@@ -324,6 +325,9 @@ new #[Title('Templates & revisions')] class extends Component {
                                     <flux:table.cell>
                                         <div class="flex justify-end gap-2">
                                             <flux:button size="sm" variant="ghost" icon="eye" wire:click="previewRevision({{ $version->id }})">{{ __('Preview') }}</flux:button>
+                                            @if ($template->publishedVersion?->is($version))
+                                                <flux:button size="sm" variant="ghost" icon="printer" :href="route('admin.label-template-test-print', ['labelTemplate' => $template])" wire:navigate>{{ __('Test print') }}</flux:button>
+                                            @endif
                                             @if (! $version->published_at)
                                                 <flux:button size="sm" variant="primary" wire:click="publishRevision({{ $version->id }})" wire:confirm="{{ __('Publish this immutable revision? It will become available for new print jobs.') }}">{{ __('Publish') }}</flux:button>
                                             @endif

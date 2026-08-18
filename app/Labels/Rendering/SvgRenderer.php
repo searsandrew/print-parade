@@ -8,6 +8,7 @@ use App\Labels\Enums\LabelElementType;
 use App\Labels\Enums\LabelRotation;
 use App\Labels\Enums\LabelTextAlignment;
 use App\Labels\Enums\QrErrorCorrection;
+use App\Labels\Enums\SemanticFontFamily;
 use InvalidArgumentException;
 
 final readonly class SvgRenderer implements LabelRenderer
@@ -94,7 +95,7 @@ final readonly class SvgRenderer implements LabelRenderer
             '<text x="%s" y="%s" font-family="%s" font-size="%s" font-weight="%s" text-anchor="%s" dominant-baseline="hanging">%s</text>',
             self::number($x),
             self::number((float) $element['y']),
-            self::xml((string) $style['font_family']),
+            self::svgFontFamily((string) $style['font_family']),
             self::number((float) $style['font_size']),
             self::xml((string) $style['font_weight']),
             $textAnchor,
@@ -175,7 +176,7 @@ final readonly class SvgRenderer implements LabelRenderer
 
             if ($showText) {
                 $text = sprintf(
-                    '<text x="%s" y="%s" font-family="sans" font-size="3" text-anchor="middle">%s</text>',
+                    '<text x="%s" y="%s" font-family="sans-serif" font-size="3" text-anchor="middle">%s</text>',
                     self::number((float) $element['x'] + ((float) $element['width'] / 2)),
                     self::number((float) $element['y'] + (float) $element['height'] - 0.3),
                     self::xml((string) $element['value']),
@@ -221,6 +222,14 @@ final readonly class SvgRenderer implements LabelRenderer
     private static function xml(string $value): string
     {
         return htmlspecialchars($value, ENT_QUOTES | ENT_XML1, 'UTF-8');
+    }
+
+    private static function svgFontFamily(string $fontFamily): string
+    {
+        return match (SemanticFontFamily::from($fontFamily)) {
+            SemanticFontFamily::Sans => 'sans-serif',
+            SemanticFontFamily::Monospace => 'monospace',
+        };
     }
 
     private static function number(float $value): string

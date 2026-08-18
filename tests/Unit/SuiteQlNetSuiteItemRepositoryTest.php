@@ -31,6 +31,8 @@ test('the repository looks up an active item by exact part number', function () 
 
         return $request->method() === 'POST'
             && str_contains($request->url(), '/services/rest/query/v1/suiteql?limit=1')
+            && str_contains($query, 'description AS part_description')
+            && ! str_contains($query, 'salesdescription')
             && str_contains($query, "itemid = 'MFG''023'")
             && str_contains($query, "isinactive = 'F'");
     });

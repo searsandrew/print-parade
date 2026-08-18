@@ -13,7 +13,7 @@ final readonly class SuiteQlNetSuiteItemRepository implements NetSuiteItemReposi
         $escapedPartNumber = str_replace("'", "''", $partNumber);
         $query = <<<SQL
             SELECT itemid AS part_number,
-                   salesdescription AS part_description,
+                   description AS part_description,
                    upccode AS upc
             FROM item
             WHERE itemid = '{$escapedPartNumber}'

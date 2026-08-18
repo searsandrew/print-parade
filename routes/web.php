@@ -16,6 +16,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::livewire('admin/printers', 'pages::admin.printers')->name('admin.printers');
         Route::livewire('admin/label-stocks', 'pages::admin.label-stocks')->name('admin.label-stocks');
         Route::livewire('admin/label-templates', 'pages::admin.label-templates')->name('admin.label-templates');
+        Route::livewire('admin/label-templates/{labelTemplate}/test-print', 'pages::admin.label-test-print')
+            ->name('admin.label-template-test-print');
         Route::livewire('admin/label-templates/{labelTemplate}/designer/{labelTemplateVersion?}', 'pages::admin.label-editor')
             ->name('admin.label-template-editor');
         Route::livewire('admin/print-jobs', 'pages::admin.print-jobs')->name('admin.print-jobs');

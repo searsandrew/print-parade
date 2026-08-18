@@ -48,6 +48,7 @@ test('linear barcode bars shorten upward while text remains anchored to the bott
     expect($tallSvg)->toContain('<image x="5" y="10.5" width="38" height="14"')
         ->and($shortSvg)->toContain('<image x="5" y="14.5" width="38" height="10"')
         ->and($tallSvg)->toContain('<text x="24" y="27.7"')
+        ->and($tallSvg)->toContain('font-family="sans-serif"')
         ->and($shortSvg)->toContain('<text x="24" y="27.7"');
 });
 
@@ -75,7 +76,34 @@ test('preview text is escaped as xml content', function () {
     );
 
     expect($svg)->toContain('&lt;unsafe &amp; text&gt;')
+        ->toContain('font-family="sans-serif"')
         ->not->toContain('<unsafe & text>');
+});
+
+test('semantic monospace text uses the browser monospace font family', function () {
+    $element = [
+        'id' => '01K00000000000000000000000',
+        'type' => 'text',
+        'x' => 5,
+        'y' => 5,
+        'width' => 50,
+        'height' => 10,
+        'rotation' => 0,
+        'value' => 'CMM023',
+        'style' => [
+            'font_family' => 'monospace',
+            'font_size' => 4,
+            'font_weight' => 'normal',
+            'alignment' => 'left',
+        ],
+    ];
+
+    $svg = (new SvgRenderer)->render(
+        new ResolvedLabelDefinition([$element], []),
+        new LabelRenderContext(101.6, 50.8, 203),
+    );
+
+    expect($svg)->toContain('font-family="monospace"');
 });
 
 test('a rotated design canvas is transformed into media coordinates as a group', function () {

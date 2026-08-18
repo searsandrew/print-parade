@@ -161,3 +161,24 @@ test('administrators can render a revision preview with generated field values',
         ->assertSee('CMM023 (0826) | PREVIEW', false)
         ->assertSee('data-preview="approximate"', false);
 });
+
+test('revision previews resolve namespaced fields with datasource samples', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $stock = LabelStock::factory()->create([
+        'width' => CalibrationLabel::WIDTH_IN_MILLIMETERS,
+        'height' => CalibrationLabel::HEIGHT_IN_MILLIMETERS,
+    ]);
+    $template = LabelTemplate::factory()->for($stock)->create(['code' => 'CMM023']);
+    $definition = CalibrationLabel::definition()->toArray();
+    $definition['elements'][1]['value'] = '{{ netsuite.part_description }}';
+    $revision = LabelTemplateVersion::factory()->for($template)->create([
+        'revision_code' => '0826',
+        'definition' => $definition,
+    ]);
+
+    Livewire::test('pages::admin.label-templates')
+        ->call('previewRevision', $revision->id)
+        ->assertSet('previewTitle', 'CMM023 (0826) · v1')
+        ->assertSee('Sample part description', false)
+        ->assertDontSee('Unsupported label value namespace');
+});
