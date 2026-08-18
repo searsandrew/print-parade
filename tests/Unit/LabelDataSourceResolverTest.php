@@ -34,6 +34,7 @@ final class TestNetSuiteLabelDataSource implements LabelDataSource
             'upc' => [
                 'label' => 'UPC',
                 'type' => 'string',
+                'format' => 'upc_a',
                 'required' => false,
                 'required_inputs' => ['part_number'],
             ],
@@ -98,6 +99,17 @@ test('a required source value cannot be empty', function () {
 
     expect(fn () => $resolver->resolve(dataSourceDefinition('{{ netsuite.part_description }}'), ['part_number' => 'CMM023']))
         ->toThrow(InvalidArgumentException::class, 'Data source value netsuite.part_description is required.');
+});
+
+test('a sourced upc is normalized before rendering', function () {
+    $source = new TestNetSuiteLabelDataSource([
+        'part_description' => 'Description',
+        'upc' => '03600029145',
+    ]);
+    $resolver = new LabelDataSourceResolver(new LabelDataSourceRegistry([$source]));
+
+    expect($resolver->resolve(dataSourceDefinition('{{ netsuite.upc }}'), ['part_number' => 'CMM023']))
+        ->toBe(['netsuite' => ['upc' => '036000291452']]);
 });
 
 function dataSourceDefinition(string $value): LabelDefinition

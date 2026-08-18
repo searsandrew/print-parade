@@ -127,7 +127,7 @@ new #[Title('Label designer')] class extends Component {
     }
 
     /**
-     * @return array<string, array<string, array{label: string, type: string, required: bool, required_inputs: list<string>}>>
+     * @return array<string, array<string, array{label: string, type: string, required: bool, required_inputs: list<string>, format?: string}>>
      */
     #[Computed]
     public function dataSourceCatalog(): array
@@ -833,7 +833,7 @@ new #[Title('Label designer')] class extends Component {
                                         </div>
                                         <code class="text-xs text-zinc-500">&#123;&#123; {{ $namespace }}.{{ $name }} &#125;&#125;</code>
                                         <div class="mt-1 text-xs text-zinc-500">
-                                            {{ Str::headline($field['type']) }}
+                                            {{ isset($field['format']) ? Str::headline($field['format']) : Str::headline($field['type']) }}
                                             @if ($field['required_inputs'] !== [])
                                                 · {{ __('Looks up by: :inputs', ['inputs' => implode(', ', $field['required_inputs'])]) }}
                                             @endif

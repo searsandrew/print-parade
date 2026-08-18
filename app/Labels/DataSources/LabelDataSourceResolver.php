@@ -3,6 +3,7 @@
 namespace App\Labels\DataSources;
 
 use App\Labels\Definitions\LabelDefinition;
+use App\Labels\Values\UpcAValue;
 use DateTimeImmutable;
 use InvalidArgumentException;
 
@@ -55,6 +56,10 @@ final readonly class LabelDataSourceResolver
                 }
 
                 $this->validateResolvedValue($namespace, $field, $catalog[$field], $values[$field]);
+
+                if (($catalog[$field]['format'] ?? null) === 'upc_a' && is_string($values[$field]) && $values[$field] !== '') {
+                    $values[$field] = UpcAValue::normalize("{$namespace}.{$field}", $values[$field]);
+                }
             }
 
             $resolved[$namespace] = array_intersect_key($values, array_flip($fields));
@@ -108,6 +113,10 @@ final readonly class LabelDataSourceResolver
 
         if (! isset($field['required_inputs']) || ! is_array($field['required_inputs']) || ! array_is_list($field['required_inputs'])) {
             throw new InvalidArgumentException("Data source field {$namespace}.{$name} must declare its required inputs.");
+        }
+
+        if (isset($field['format']) && ($field['format'] !== 'upc_a' || $field['type'] !== 'string')) {
+            throw new InvalidArgumentException("Data source field {$namespace}.{$name} has an unsupported format for its type.");
         }
 
         foreach ($field['required_inputs'] as $input) {

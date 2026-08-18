@@ -2,6 +2,10 @@
 
 namespace App\Providers;
 
+use App\Labels\DataSources\LabelDataSourceRegistry;
+use App\Labels\DataSources\NetSuite\NetSuiteItemRepository;
+use App\Labels\DataSources\NetSuite\NetSuiteLabelDataSource;
+use App\Labels\DataSources\NetSuite\SuiteQlNetSuiteItemRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -18,7 +22,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(NetSuiteItemRepository::class, SuiteQlNetSuiteItemRepository::class);
+        $this->app->singleton(LabelDataSourceRegistry::class, fn ($app): LabelDataSourceRegistry => new LabelDataSourceRegistry([
+            $app->make(NetSuiteLabelDataSource::class),
+        ]));
     }
 
     /**

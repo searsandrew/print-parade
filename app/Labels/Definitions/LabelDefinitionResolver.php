@@ -2,6 +2,7 @@
 
 namespace App\Labels\Definitions;
 
+use App\Labels\Values\UpcAValue;
 use DateTimeImmutable;
 use InvalidArgumentException;
 
@@ -129,7 +130,7 @@ final class LabelDefinitionResolver
             }
 
             if (($field['format'] ?? null) === 'upc_a' && is_string($value) && $value !== '') {
-                $value = $this->normalizeUpcA($name, $value);
+                $value = UpcAValue::normalize($name, $value);
             }
 
             /** @var scalar|null $value */
@@ -230,30 +231,6 @@ final class LabelDefinitionResolver
             $value === false => 'false',
             default => (string) $value,
         };
-    }
-
-    private function normalizeUpcA(string $name, string $value): string
-    {
-        $data = substr($value, 0, 11);
-        $checkDigit = $this->upcACheckDigit($data);
-
-        if (strlen($value) === 12 && $value[11] !== $checkDigit) {
-            throw new InvalidArgumentException("Field {$name} has an invalid UPC-A check digit.");
-        }
-
-        return $data.$checkDigit;
-    }
-
-    private function upcACheckDigit(string $data): string
-    {
-        $sum = 0;
-
-        for ($index = 0; $index < 11; $index++) {
-            $digit = (int) $data[$index];
-            $sum += $index % 2 === 0 ? $digit * 3 : $digit;
-        }
-
-        return (string) ((10 - ($sum % 10)) % 10);
     }
 
     private static function isIsoDate(string $value): bool

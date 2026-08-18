@@ -1,7 +1,5 @@
 <?php
 
-use App\Labels\DataSources\LabelDataSource;
-use App\Labels\DataSources\LabelDataSourceRegistry;
 use App\Labels\Definitions\LabelDefinition;
 use App\Labels\Enums\PrintJobStatus;
 use App\Models\LabelStock;
@@ -11,12 +9,27 @@ use App\Models\PrintBridge;
 use App\Models\Printer;
 use App\Models\PrintJob;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Searsandrew\BriarRose\BriarRoseManager;
 
 test('a published operator label flows from catalog through the bridge payload', function () {
-    $this->app->instance(LabelDataSourceRegistry::class, new LabelDataSourceRegistry([
-        new PublishedFlowNetSuiteDataSource,
-    ]));
+    config()->set('briar-rose.rest.retries.enabled', false);
+    config()->set('briar-rose.account', 'test-account');
+    config()->set('briar-rose.consumer_key', 'consumer-key');
+    config()->set('briar-rose.consumer_secret', 'consumer-secret');
+    config()->set('briar-rose.token_id', 'token-id');
+    config()->set('briar-rose.token_secret', 'token-secret');
+    $this->app->forgetInstance(BriarRoseManager::class);
+    Http::fake([
+        'https://test-account.suitetalk.api.netsuite.com/*' => Http::response([
+            'items' => [[
+                'part_number' => 'CMM023',
+                'part_description' => 'Replacement filter assembly',
+                'upc' => '036000291452',
+            ]],
+        ]),
+    ]);
     $station = User::factory()->sharedPrintStation()->create();
     $operator = User::factory()->create(['name' => 'Amanda Operator']);
     $operator->assignPin('4826');
@@ -161,32 +174,4 @@ function endToEndDefinition(): LabelDefinition
             'upc' => ['type' => 'string', 'format' => 'upc_a', 'required' => true, 'label' => 'UPC'],
         ],
     ]);
-}
-
-final class PublishedFlowNetSuiteDataSource implements LabelDataSource
-{
-    public function namespace(): string
-    {
-        return 'netsuite';
-    }
-
-    public function fields(): array
-    {
-        return [
-            'part_description' => [
-                'label' => 'Part description',
-                'type' => 'string',
-                'required' => true,
-                'required_inputs' => ['part_number'],
-            ],
-        ];
-    }
-
-    public function resolve(array $fields, array $input): array
-    {
-        expect($fields)->toBe(['part_description'])
-            ->and($input['part_number'])->toBe('CMM023');
-
-        return ['part_description' => 'Replacement filter assembly'];
-    }
 }
