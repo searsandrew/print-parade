@@ -2,6 +2,7 @@
 
 namespace App\Labels\Printing;
 
+use App\Labels\DataSources\LabelDataSourceResolver;
 use App\Labels\Definitions\LabelDefinitionResolver;
 use App\Labels\Enums\PrinterLanguage;
 use App\Labels\Enums\PrintJobStatus;
@@ -17,6 +18,7 @@ final readonly class PrintJobExecutor
 {
     public function __construct(
         private LabelDefinitionResolver $resolver,
+        private LabelDataSourceResolver $dataSourceResolver,
         private ZplRenderer $renderer,
     ) {}
 
@@ -55,16 +57,24 @@ final readonly class PrintJobExecutor
                 $version->revision_code,
                 $job->shortIdentifier(),
             );
+            $inputValues = $this->resolver->resolveInputValues($version->definition, $job->input_values);
+            $dataSourceValues = $this->dataSourceResolver->resolve($version->definition, $inputValues);
+            $systemValues = ['job_identifier' => $jobIdentifier];
             $resolvedDefinition = $this->resolver->resolve(
                 $version->definition,
-                $job->input_values,
-                ['job_identifier' => $jobIdentifier],
+                $inputValues,
+                $systemValues,
+                $dataSourceValues,
             );
             $zpl = $this->renderer->render(
                 $resolvedDefinition,
                 LabelRenderContext::fromStock($version->labelTemplate->labelStock, $job->printer->dpi),
             );
-            $job->queue($user, $zpl);
+            $job->queue($user, $zpl, [
+                ...$inputValues,
+                ...$dataSourceValues,
+                'system' => $systemValues,
+            ]);
 
             return new PreparedPrintJob(
                 jobId: $job->id,

@@ -12,11 +12,12 @@ final class LabelDefinitionResolver
     /**
      * @param  array<string, mixed>  $input
      * @param  array<string, mixed>  $system
+     * @param  array<string, array<string, scalar|null>>  $dataSources
      */
-    public function resolve(LabelDefinition $definition, array $input, array $system): ResolvedLabelDefinition
+    public function resolve(LabelDefinition $definition, array $input, array $system, array $dataSources = []): ResolvedLabelDefinition
     {
         $rawDefinition = $definition->toArray();
-        $values = $this->resolveInputValues($rawDefinition['fields'], $input);
+        $values = $this->resolveInputValues($definition, $input);
         $systemValues = $this->normalizeSystemValues($system);
         $elements = [];
 
@@ -35,7 +36,7 @@ final class LabelDefinitionResolver
             $referencedValues = [];
 
             foreach ($references as $reference) {
-                $referencedValues[$reference] = $this->valueForReference($reference, $values, $systemValues);
+                $referencedValues[$reference] = $this->valueForReference($reference, $values, $systemValues, $dataSources);
             }
 
             $hideWhenEmpty = $element['hide_when_empty'] ?? true;
@@ -53,7 +54,24 @@ final class LabelDefinitionResolver
             $elements[] = $element;
         }
 
-        return new ResolvedLabelDefinition($elements, $values, $rawDefinition['canvas_rotation'] ?? 0);
+        $resolvedValues = $values;
+
+        foreach ($dataSources as $namespace => $sourceValues) {
+            foreach ($sourceValues as $name => $value) {
+                $resolvedValues["{$namespace}.{$name}"] = $value;
+            }
+        }
+
+        return new ResolvedLabelDefinition($elements, $resolvedValues, $rawDefinition['canvas_rotation'] ?? 0);
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     * @return array<string, scalar|null>
+     */
+    public function resolveInputValues(LabelDefinition $definition, array $input): array
+    {
+        return $this->normalizeInputValues($definition->toArray()['fields'], $input);
     }
 
     /**
@@ -89,7 +107,7 @@ final class LabelDefinitionResolver
      * @param  array<string, mixed>  $input
      * @return array<string, scalar|null>
      */
-    private function resolveInputValues(array $fields, array $input): array
+    private function normalizeInputValues(array $fields, array $input): array
     {
         $unknownFields = array_diff(array_keys($input), array_keys($fields));
 
@@ -157,21 +175,30 @@ final class LabelDefinitionResolver
     /**
      * @param  array<string, scalar|null>  $values
      * @param  array<string, scalar|null>  $systemValues
+     * @param  array<string, array<string, scalar|null>>  $dataSources
      */
-    private function valueForReference(string $reference, array $values, array $systemValues): string|int|float|bool|null
+    private function valueForReference(string $reference, array $values, array $systemValues, array $dataSources): string|int|float|bool|null
     {
         if (str_contains($reference, '.')) {
             [$namespace, $name] = explode('.', $reference, 2);
 
-            if ($namespace !== 'system') {
+            if ($namespace === 'system') {
+                if (! array_key_exists($name, $systemValues)) {
+                    throw new InvalidArgumentException("System value {$name} is unavailable.");
+                }
+
+                return $systemValues[$name];
+            }
+
+            if (! isset($dataSources[$namespace])) {
                 throw new InvalidArgumentException("Unsupported label value namespace: {$namespace}.");
             }
 
-            if (! array_key_exists($name, $systemValues)) {
-                throw new InvalidArgumentException("System value {$name} is unavailable.");
+            if (! array_key_exists($name, $dataSources[$namespace])) {
+                throw new InvalidArgumentException("Data source value {$namespace}.{$name} is unavailable.");
             }
 
-            return $systemValues[$name];
+            return $dataSources[$namespace][$name];
         }
 
         if (! array_key_exists($reference, $values)) {

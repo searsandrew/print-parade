@@ -20,6 +20,7 @@ use LogicException;
  * @property int $printer_id
  * @property int|null $submitted_by
  * @property array<string, mixed> $input_values
+ * @property array<string, mixed>|null $resolved_values
  * @property int $quantity
  * @property PrintJobStatus $status
  * @property string|null $output_payload
@@ -50,6 +51,7 @@ class PrintJob extends Model
     {
         return [
             'input_values' => 'array',
+            'resolved_values' => 'array',
             'quantity' => 'integer',
             'status' => PrintJobStatus::class,
             'queued_at' => 'immutable_datetime',
@@ -79,7 +81,8 @@ class PrintJob extends Model
         return strtoupper(substr($this->id, -8));
     }
 
-    public function queue(User $user, string $payload): void
+    /** @param array<string, mixed> $resolvedValues */
+    public function queue(User $user, string $payload, array $resolvedValues = []): void
     {
         $this->assertStatus(PrintJobStatus::Pending);
         $updated = self::query()
@@ -89,6 +92,7 @@ class PrintJob extends Model
                 'status' => PrintJobStatus::Queued->value,
                 'output_payload' => $payload,
                 'output_checksum' => hash('sha256', $payload),
+                'resolved_values' => $resolvedValues,
                 'executed_by' => $user->getKey(),
                 'queued_at' => now(),
             ]);

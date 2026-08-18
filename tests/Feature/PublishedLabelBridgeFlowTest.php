@@ -1,5 +1,7 @@
 <?php
 
+use App\Labels\DataSources\LabelDataSource;
+use App\Labels\DataSources\LabelDataSourceRegistry;
 use App\Labels\Definitions\LabelDefinition;
 use App\Labels\Enums\PrintJobStatus;
 use App\Models\LabelStock;
@@ -12,6 +14,9 @@ use App\Models\User;
 use Illuminate\Support\Str;
 
 test('a published operator label flows from catalog through the bridge payload', function () {
+    $this->app->instance(LabelDataSourceRegistry::class, new LabelDataSourceRegistry([
+        new PublishedFlowNetSuiteDataSource,
+    ]));
     $station = User::factory()->sharedPrintStation()->create();
     $operator = User::factory()->create(['name' => 'Amanda Operator']);
     $operator->assignPin('4826');
@@ -69,7 +74,12 @@ test('a published operator label flows from catalog through the bridge payload',
         ->and($job->submitted_by)->toBe($station->id)
         ->and($job->executed_by)->toBe($operator->id)
         ->and($job->output_payload)->toContain('^PW431', '^LL812', '^A0R,', '^BUR,')
-        ->and($job->output_payload)->toContain('Part CMM023', '03600029145')
+        ->and($job->output_payload)->toContain('Part CMM023', 'Replacement filter assembly', '03600029145')
+        ->and($job->resolved_values)->toMatchArray([
+            'part_number' => 'CMM023',
+            'upc' => '036000291452',
+            'netsuite' => ['part_description' => 'Replacement filter assembly'],
+        ])
         ->and($job->output_checksum)->toBe(hash('sha256', $job->output_payload));
 
     $claim = $this->withToken($bridgeToken)
@@ -126,6 +136,17 @@ function endToEndDefinition(): LabelDefinition
             ],
             [
                 'id' => (string) Str::ulid(),
+                'type' => 'text',
+                'x' => 5,
+                'y' => 40,
+                'width' => 80,
+                'height' => 5,
+                'rotation' => 0,
+                'value' => '{{ netsuite.part_description }}',
+                'style' => ['font_family' => 'sans', 'font_size' => 3, 'font_weight' => 'normal', 'alignment' => 'left'],
+            ],
+            [
+                'id' => (string) Str::ulid(),
                 'type' => 'job_identifier',
                 'x' => 5,
                 'y' => 46,
@@ -140,4 +161,32 @@ function endToEndDefinition(): LabelDefinition
             'upc' => ['type' => 'string', 'format' => 'upc_a', 'required' => true, 'label' => 'UPC'],
         ],
     ]);
+}
+
+final class PublishedFlowNetSuiteDataSource implements LabelDataSource
+{
+    public function namespace(): string
+    {
+        return 'netsuite';
+    }
+
+    public function fields(): array
+    {
+        return [
+            'part_description' => [
+                'label' => 'Part description',
+                'type' => 'string',
+                'required' => true,
+                'required_inputs' => ['part_number'],
+            ],
+        ];
+    }
+
+    public function resolve(array $fields, array $input): array
+    {
+        expect($fields)->toBe(['part_description'])
+            ->and($input['part_number'])->toBe('CMM023');
+
+        return ['part_description' => 'Replacement filter assembly'];
+    }
 }
