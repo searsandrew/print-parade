@@ -33,7 +33,9 @@ test('a new design starts with the required job identifier selected', function (
     Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
         ->assertSet('selectedIndex', 0)
         ->assertSet('elements.0.type', LabelElementType::JobIdentifier->value)
-        ->assertSet('fields', []);
+        ->assertSet('fields', [])
+        ->assertSee('aspect-ratio:', false)
+        ->assertSee('maxWidth:', false);
 });
 
 test('an editor revision can begin from an existing immutable definition', function () {
@@ -103,6 +105,7 @@ test('the designer creates supported barcode elements with usable defaults', fun
         ->assertSet('elements.1.type', LabelElementType::Barcode->value)
         ->assertSet('elements.1.symbology', $symbology)
         ->assertSet('elements.1.value', $value)
+        ->assertSee('data:image/svg+xml;base64,', false)
         ->call('preview')
         ->assertHasNoErrors();
 
@@ -117,6 +120,18 @@ test('the designer creates supported barcode elements with usable defaults', fun
     'UPC-A' => ['upc_a', '036000291452'],
     'QR code' => ['qr_code', 'https://example.com'],
 ]);
+
+test('barcode widths snap to whole dot module breakpoints', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $template = designerTemplate();
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->call('addElement', 'barcode', 'upc_a')
+        ->call('setBarcodeModuleWidth', 1, 0.375)
+        ->assertSet('elements.1.module_width', 0.375)
+        ->assertSet('elements.1.width', 42.417)
+        ->assertSee('036000291452');
+});
 
 test('administrators can define fields for mixed element content', function () {
     $this->actingAs(User::factory()->admin()->create());

@@ -7,6 +7,7 @@ use App\Labels\Enums\LabelElementType;
 use App\Labels\Enums\QrErrorCorrection;
 use App\Labels\Rendering\LabelRenderContext;
 use App\Labels\Rendering\SvgRenderer;
+use App\Labels\Rendering\TcLibBarcodeSvgGenerator;
 use App\Labels\Templates\LabelRevisionCreator;
 use App\Models\LabelTemplate;
 use App\Models\LabelTemplateVersion;
@@ -123,6 +124,69 @@ new #[Title('Label designer')] class extends Component {
         }
 
         $this->selectedIndex = $index;
+    }
+
+    public function setBarcodeModuleWidth(int $index, float $moduleWidth): void
+    {
+        abort_unless(($this->elements[$index]['type'] ?? null) === LabelElementType::Barcode->value, 404);
+
+        $moduleDots = max(2, min(10, (int) round($moduleWidth / 25.4 * 203)));
+        $normalizedModuleWidth = $moduleDots / 203 * 25.4;
+        $symbology = BarcodeSymbology::from($this->elements[$index]['symbology']);
+        $totalModules = $this->barcodeTotalModules($this->elements[$index]);
+        $physicalWidth = round($totalModules * $normalizedModuleWidth, 3);
+        $stockWidth = (float) $this->template->labelStock->width;
+        $stockHeight = (float) $this->template->labelStock->height;
+
+        $this->elements[$index]['module_width'] = round($normalizedModuleWidth, 3);
+        $this->elements[$index]['width'] = min($physicalWidth, $stockWidth);
+        $this->elements[$index]['x'] = min((float) $this->elements[$index]['x'], max(0.0, $stockWidth - $physicalWidth));
+
+        if ($symbology === BarcodeSymbology::QrCode) {
+            $this->elements[$index]['height'] = min($physicalWidth, $stockHeight);
+            $this->elements[$index]['y'] = min((float) $this->elements[$index]['y'], max(0.0, $stockHeight - $physicalWidth));
+        }
+    }
+
+    public function syncBarcodeWidth(int $index): void
+    {
+        abort_unless(($this->elements[$index]['type'] ?? null) === LabelElementType::Barcode->value, 404);
+
+        $this->setBarcodeModuleWidth($index, (float) ($this->elements[$index]['module_width'] ?? 0.25));
+    }
+
+    public function changeBarcodeSymbology(int $index, string $symbology): void
+    {
+        abort_unless(($this->elements[$index]['type'] ?? null) === LabelElementType::Barcode->value, 404);
+
+        $barcodeSymbology = BarcodeSymbology::from($symbology);
+        $this->elements[$index]['symbology'] = $barcodeSymbology->value;
+
+        if ($barcodeSymbology === BarcodeSymbology::QrCode) {
+            $this->elements[$index]['error_correction'] ??= QrErrorCorrection::Medium->value;
+            $this->elements[$index]['module_width'] = 4 / 203 * 25.4;
+        } else {
+            $this->elements[$index]['show_text'] ??= true;
+            $this->elements[$index]['bar_height'] ??= max(6.35, (float) $this->elements[$index]['height'] - 3.5);
+            $this->elements[$index]['module_width'] = 2 / 203 * 25.4;
+        }
+
+        $this->setBarcodeModuleWidth($index, (float) $this->elements[$index]['module_width']);
+    }
+
+    public function barcodePreviewDataUri(array $element): string
+    {
+        try {
+            $svg = (new TcLibBarcodeSvgGenerator)->generate(
+                BarcodeSymbology::from($element['symbology']),
+                $this->barcodePreviewValue($element),
+                QrErrorCorrection::tryFrom($element['error_correction'] ?? '') ?? QrErrorCorrection::Medium,
+            );
+
+            return 'data:image/svg+xml;base64,'.base64_encode($svg);
+        } catch (\InvalidArgumentException) {
+            return '';
+        }
     }
 
     public function selectElement(int $index): void
@@ -308,6 +372,44 @@ new #[Title('Label designer')] class extends Component {
         };
     }
 
+    /** @param array<string, mixed> $element */
+    public function barcodePreviewValue(array $element): string
+    {
+        $value = (string) $element['value'];
+
+        return preg_replace_callback('/\{\{\s*([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?)\s*\}\}/', function (array $matches): string {
+            if ($matches[1] === 'system.job_identifier') {
+                return 'JOB12345';
+            }
+
+            return (string) ($this->sampleValues()[$matches[1]] ?? 'SAMPLE');
+        }, $value) ?? $value;
+    }
+
+    /** @param array<string, mixed> $element */
+    private function barcodeTotalModules(array $element): int
+    {
+        $symbology = BarcodeSymbology::from($element['symbology']);
+        $valueLength = strlen($this->barcodePreviewValue($element));
+
+        return match ($symbology) {
+            BarcodeSymbology::UpcA => 113,
+            BarcodeSymbology::Code128 => (11 * $valueLength) + 55,
+            BarcodeSymbology::QrCode => (21 + (4 * ($this->qrVersionForLength($valueLength) - 1))) + 8,
+        };
+    }
+
+    private function qrVersionForLength(int $length): int
+    {
+        foreach ([14, 26, 42, 62, 84, 106, 122, 152, 180, 213] as $index => $capacity) {
+            if ($length <= $capacity) {
+                return $index + 1;
+            }
+        }
+
+        return 10;
+    }
+
     /** @return array<string, mixed> */
     private function newTextElement(): array
     {
@@ -375,8 +477,23 @@ new #[Title('Label designer')] class extends Component {
         $stockWidth = (float) $this->template->labelStock->width;
         $stockHeight = (float) $this->template->labelStock->height;
         $isQrCode = $barcodeSymbology === BarcodeSymbology::QrCode;
-        $width = max(0.1, min($isQrCode ? 22.0 : 45.0, $stockWidth - 10.0));
+        $previewValue = match ($barcodeSymbology) {
+            BarcodeSymbology::UpcA => '036000291452',
+            BarcodeSymbology::QrCode => 'https://example.com',
+            BarcodeSymbology::Code128 => 'ABC-123',
+        };
+        $moduleWidth = ($isQrCode ? 4 : 2) / 203 * 25.4;
+        $totalModules = match ($barcodeSymbology) {
+            BarcodeSymbology::UpcA => 113,
+            BarcodeSymbology::Code128 => (11 * strlen($previewValue)) + 55,
+            BarcodeSymbology::QrCode => 33,
+        };
+        $width = max(0.1, min(round($totalModules * $moduleWidth, 3), $stockWidth - 10.0));
         $height = max(0.1, min($isQrCode ? 22.0 : 18.0, $stockHeight - 10.0));
+
+        if ($isQrCode) {
+            $height = $width;
+        }
 
         return array_filter([
             'id' => (string) Str::ulid(),
@@ -388,13 +505,9 @@ new #[Title('Label designer')] class extends Component {
             'rotation' => 0,
             'hide_when_empty' => true,
             'symbology' => $barcodeSymbology->value,
-            'value' => match ($barcodeSymbology) {
-                BarcodeSymbology::UpcA => '036000291452',
-                BarcodeSymbology::QrCode => 'https://example.com',
-                BarcodeSymbology::Code128 => 'ABC-123',
-            },
+            'value' => $previewValue,
             'show_text' => $isQrCode ? null : true,
-            'module_width' => $isQrCode ? null : 0.25,
+            'module_width' => round($moduleWidth, 3),
             'bar_height' => $isQrCode ? null : max(6.35, $height - 3.5),
             'error_correction' => $isQrCode ? QrErrorCorrection::Medium->value : null,
         ], static fn (mixed $value): bool => $value !== null);
@@ -482,8 +595,17 @@ new #[Title('Label designer')] class extends Component {
             </div>
         </flux:card>
 
-        <flux:card class="flex items-center justify-center overflow-auto bg-zinc-100 p-8! dark:bg-zinc-900">
-            <div
+        <flux:card x-data="{ zoom: 'actual' }" class="flex min-w-0 flex-col overflow-hidden bg-zinc-100 p-0! dark:bg-zinc-900">
+            <div class="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800">
+                <flux:text class="text-xs">{{ __('Approximate physical size') }}</flux:text>
+                <flux:button.group>
+                    <flux:button size="sm" x-on:click="zoom = 'actual'" x-bind:variant="zoom === 'actual' ? 'primary' : 'ghost'">{{ __('Actual size') }}</flux:button>
+                    <flux:button size="sm" x-on:click="zoom = 'fit'" x-bind:variant="zoom === 'fit' ? 'primary' : 'ghost'">{{ __('Fit') }}</flux:button>
+                    <flux:button size="sm" x-on:click="zoom = 'double'" x-bind:variant="zoom === 'double' ? 'primary' : 'ghost'">200%</flux:button>
+                </flux:button.group>
+            </div>
+            <div class="flex min-h-[620px] flex-1 items-center justify-center overflow-auto p-8">
+                <div
                 x-data="{
                     interaction: null,
                     begin(event, index, mode, x, y, width, height) {
@@ -503,6 +625,11 @@ new #[Title('Label designer')] class extends Component {
                             state.nextY = Math.max(0, Math.min(state.y + dy, {{ (float) $this->template->labelStock->height }} - state.height));
                             state.nextWidth = state.width;
                             state.nextHeight = state.height;
+                        } else if (state.mode === 'height') {
+                            state.nextX = state.x;
+                            state.nextY = state.y;
+                            state.nextWidth = state.width;
+                            state.nextHeight = Math.max(0.1, Math.min(state.height + dy, {{ (float) $this->template->labelStock->height }} - state.y));
                         } else {
                             state.nextX = state.x;
                             state.nextY = state.y;
@@ -526,8 +653,12 @@ new #[Title('Label designer')] class extends Component {
                 x-on:pointermove.window="move($event)"
                 x-on:pointerup.window="finish()"
                 x-on:pointercancel.window="finish()"
-                class="relative w-full max-w-[900px] overflow-hidden border border-zinc-300 bg-white shadow-xl dark:border-zinc-600"
-                style="aspect-ratio: {{ (float) $this->template->labelStock->width }} / {{ (float) $this->template->labelStock->height }}; container-type: size;"
+                x-bind:style="{
+                    width: zoom === 'fit' ? '100%' : (zoom === 'double' ? {{ (float) $this->template->labelStock->width * 2 }} : {{ (float) $this->template->labelStock->width }}) + 'mm',
+                    maxWidth: zoom === 'fit' ? '100%' : 'none',
+                }"
+                class="relative shrink-0 overflow-hidden border border-zinc-300 bg-white shadow-xl dark:border-zinc-600"
+                style="width: {{ (float) $this->template->labelStock->width }}mm; aspect-ratio: {{ (float) $this->template->labelStock->width }} / {{ (float) $this->template->labelStock->height }}; container-type: size;"
                 aria-label="{{ __('Label canvas') }}"
             >
                 @foreach ($elements as $index => $element)
@@ -551,28 +682,39 @@ new #[Title('Label designer')] class extends Component {
                         @elseif ($element['type'] === 'line')
                             <span class="block w-full border-t border-black"></span>
                         @elseif ($element['type'] === 'barcode')
-                            <span @class([
-                                'flex size-full items-center justify-center overflow-hidden border border-zinc-500 bg-white text-center font-mono text-[10px] text-black',
-                                'rounded-sm bg-[repeating-linear-gradient(90deg,#000_0,#000_2px,#fff_2px,#fff_4px)]' => ($element['symbology'] ?? '') !== 'qr_code',
-                                'bg-[repeating-conic-gradient(#000_0_25%,#fff_0_50%)] bg-[length:8px_8px]' => ($element['symbology'] ?? '') === 'qr_code',
-                            ])>
-                                <span class="bg-white/90 px-1">{{ strtoupper(str_replace('_', ' ', $element['symbology'])) }}</span>
+                            @php
+                                $barcodeValue = $this->barcodePreviewValue($element);
+                                $barcodeUri = $this->barcodePreviewDataUri($element);
+                                $isQrCode = ($element['symbology'] ?? '') === 'qr_code';
+                                $showBarcodeText = ! $isQrCode && ($element['show_text'] ?? true);
+                                $textHeightPercent = $showBarcodeText ? min(35, 3 / (float) $element['height'] * 100) : 0;
+                            @endphp
+                            <span class="flex size-full flex-col overflow-hidden bg-white text-black">
+                                @if ($barcodeUri !== '')
+                                    <img src="{{ $barcodeUri }}" alt="" draggable="false" class="min-h-0 w-full flex-1 object-fill" />
+                                @else
+                                    <span class="flex min-h-0 flex-1 items-center justify-center bg-red-50 text-[8px] text-red-700">{{ __('Invalid sample') }}</span>
+                                @endif
+                                @if ($showBarcodeText)
+                                    <span class="flex shrink-0 items-end justify-center overflow-hidden whitespace-nowrap font-sans text-black" style="height: {{ $textHeightPercent }}%; font-size: clamp(6px, 3cqh, 14px); line-height: 1;">{{ $barcodeValue }}</span>
+                                @endif
                             </span>
                         @else
                             <span class="block size-full text-black" style="font-family: {{ ($element['style']['font_family'] ?? 'sans') === 'monospace' ? 'monospace' : 'sans-serif' }}; font-weight: {{ $element['style']['font_weight'] ?? 'normal' }}; font-size: clamp(8px, {{ ((float) ($element['style']['font_size'] ?? 3) / (float) $this->template->labelStock->height) * 100 }}cqh, 36px); text-align: {{ $element['style']['alignment'] ?? 'left' }};">
                                 {{ $element['type'] === 'job_identifier' ? $this->template->code.' ('.$revisionCode.') | JOB ID' : ($element['value'] ?? '') }}
                             </span>
                         @endif
-                        @if ($selectedIndex === $index)
+                        @if ($selectedIndex === $index && (($element['type'] ?? '') !== 'barcode' || ($element['symbology'] ?? '') !== 'qr_code'))
                             <span
                                 role="button"
                                 aria-label="{{ __('Resize element') }}"
-                                x-on:pointerdown.stop.prevent="begin($event, {{ $index }}, 'resize', {{ (float) $element['x'] }}, {{ (float) $element['y'] }}, {{ (float) $element['width'] }}, {{ (float) $element['height'] }})"
-                                class="absolute -right-2 -bottom-2 z-20 size-4 cursor-nwse-resize rounded-sm border-2 border-white bg-blue-600 shadow"
+                                x-on:pointerdown.stop.prevent="begin($event, {{ $index }}, '{{ ($element['type'] ?? '') === 'barcode' ? 'height' : 'resize' }}', {{ (float) $element['x'] }}, {{ (float) $element['y'] }}, {{ (float) $element['width'] }}, {{ (float) $element['height'] }})"
+                                @class(['absolute -right-2 -bottom-2 z-20 size-4 rounded-sm border-2 border-white bg-blue-600 shadow', 'cursor-ns-resize' => ($element['type'] ?? '') === 'barcode', 'cursor-nwse-resize' => ($element['type'] ?? '') !== 'barcode'])
                             ></span>
                         @endif
                     </button>
                 @endforeach
+                </div>
             </div>
         </flux:card>
 
@@ -585,10 +727,10 @@ new #[Title('Label designer')] class extends Component {
                 <div class="grid grid-cols-2 gap-4">
                     <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.x" :label="__('X (mm)')" type="number" min="0" step="0.1" />
                     <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.y" :label="__('Y (mm)')" type="number" min="0" step="0.1" />
-                    <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.width" :label="__('Width (mm)')" type="number" min="0.1" step="0.1" />
-                    <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.height" :label="__('Height (mm)')" type="number" min="0.1" step="0.1" />
+                    <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.width" :label="__('Width (mm)')" type="number" min="0.1" step="0.1" :disabled="$selected['type'] === 'barcode'" />
+                    <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.height" :label="__('Height (mm)')" type="number" min="0.1" step="0.1" :disabled="$selected['type'] === 'barcode' && ($selected['symbology'] ?? '') === 'qr_code'" />
                 </div>
-                <flux:select wire:model.live.number="elements.{{ $selectedIndex }}.rotation" :label="__('Rotation')">
+                <flux:select wire:model.live.number="elements.{{ $selectedIndex }}.rotation" :label="__('Rotation')" :disabled="$selected['type'] === 'barcode'">
                     <flux:select.option value="0">0°</flux:select.option><flux:select.option value="90">90°</flux:select.option><flux:select.option value="180">180°</flux:select.option><flux:select.option value="270">270°</flux:select.option>
                 </flux:select>
 
@@ -604,16 +746,23 @@ new #[Title('Label designer')] class extends Component {
                         <flux:select wire:model.live="elements.{{ $selectedIndex }}.style.alignment" :label="__('Align')"><flux:select.option value="left">{{ __('Left') }}</flux:select.option><flux:select.option value="center">{{ __('Center') }}</flux:select.option><flux:select.option value="right">{{ __('Right') }}</flux:select.option></flux:select>
                     </div>
                 @elseif ($selected['type'] === 'barcode')
-                    <flux:select wire:model.live="elements.{{ $selectedIndex }}.symbology" :label="__('Symbology')">
+                    <flux:select wire:model.live="elements.{{ $selectedIndex }}.symbology" wire:change="changeBarcodeSymbology({{ $selectedIndex }}, $event.target.value)" :label="__('Symbology')">
                         <flux:select.option value="code128">{{ __('Code 128') }}</flux:select.option>
                         <flux:select.option value="upc_a">{{ __('UPC-A') }}</flux:select.option>
                         <flux:select.option value="qr_code">{{ __('QR code') }}</flux:select.option>
                     </flux:select>
-                    <flux:textarea wire:model.live.debounce.250ms="elements.{{ $selectedIndex }}.value" :label="__('Content')" rows="3" />
+                    <flux:textarea wire:model.live.debounce.250ms="elements.{{ $selectedIndex }}.value" wire:blur="syncBarcodeWidth({{ $selectedIndex }})" :label="__('Content')" rows="3" />
                     <flux:text class="text-xs">{{ __('Content may be literal text, a field placeholder, or a mixture of both.') }}</flux:text>
                     <flux:switch wire:model.live="elements.{{ $selectedIndex }}.hide_when_empty" :label="__('Hide when empty')" />
 
                     @if (($selected['symbology'] ?? '') === 'qr_code')
+                        <flux:select wire:change="setBarcodeModuleWidth({{ $selectedIndex }}, $event.target.value)" :value="number_format((float) ($selected['module_width'] ?? 0.5), 3, '.', '')" :label="__('Module size')">
+                            <flux:select.option value="0.250">2 dots · 0.250 mm</flux:select.option>
+                            <flux:select.option value="0.375">3 dots · 0.375 mm</flux:select.option>
+                            <flux:select.option value="0.500">4 dots · 0.500 mm</flux:select.option>
+                            <flux:select.option value="0.625">5 dots · 0.625 mm</flux:select.option>
+                            <flux:select.option value="0.750">6 dots · 0.750 mm</flux:select.option>
+                        </flux:select>
                         <flux:select wire:model.live="elements.{{ $selectedIndex }}.error_correction" :label="__('Error correction')">
                             <flux:select.option value="low">{{ __('Low') }}</flux:select.option>
                             <flux:select.option value="medium">{{ __('Medium') }}</flux:select.option>
@@ -624,7 +773,12 @@ new #[Title('Label designer')] class extends Component {
                     @else
                         <flux:switch wire:model.live="elements.{{ $selectedIndex }}.show_text" :label="__('Show human-readable text')" />
                         <div class="grid grid-cols-2 gap-4">
-                            <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.module_width" :label="__('Module width (mm)')" type="number" min="0.1" step="0.025" />
+                            <flux:select wire:change="setBarcodeModuleWidth({{ $selectedIndex }}, $event.target.value)" :value="number_format((float) ($selected['module_width'] ?? 0.25), 3, '.', '')" :label="__('Module width')">
+                                <flux:select.option value="0.250">2 dots · 0.250 mm</flux:select.option>
+                                <flux:select.option value="0.375">3 dots · 0.375 mm</flux:select.option>
+                                <flux:select.option value="0.500">4 dots · 0.500 mm</flux:select.option>
+                                <flux:select.option value="0.625">5 dots · 0.625 mm</flux:select.option>
+                            </flux:select>
                             <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.bar_height" :label="__('Bar height (mm)')" type="number" min="6.35" step="0.1" />
                         </div>
                         @if (($selected['symbology'] ?? '') === 'upc_a')
