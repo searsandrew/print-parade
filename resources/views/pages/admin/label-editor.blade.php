@@ -2,6 +2,7 @@
 
 use App\Labels\Definitions\LabelDefinition;
 use App\Labels\Definitions\LabelDefinitionResolver;
+use App\Labels\DataSources\LabelDataSourceRegistry;
 use App\Labels\Enums\BarcodeSymbology;
 use App\Labels\Enums\LabelElementType;
 use App\Labels\Enums\QrErrorCorrection;
@@ -123,6 +124,15 @@ new #[Title('Label designer')] class extends Component {
     public function template(): LabelTemplate
     {
         return LabelTemplate::query()->with('labelStock')->findOrFail($this->templateId);
+    }
+
+    /**
+     * @return array<string, array<string, array{label: string, type: string, required: bool, required_inputs: list<string>}>>
+     */
+    #[Computed]
+    public function dataSourceCatalog(): array
+    {
+        return app(LabelDataSourceRegistry::class)->catalog();
     }
 
     #[Computed]
@@ -793,6 +803,51 @@ new #[Title('Label designer')] class extends Component {
                         <flux:text class="text-sm">{{ __('No variable fields yet.') }}</flux:text>
                     @endforelse
                 </div>
+            </div>
+
+            <flux:separator />
+
+            <div>
+                <flux:heading size="sm">{{ __('Data sources') }}</flux:heading>
+                <flux:text class="mt-1 text-xs">{{ __('Values supplied by integrations. Enter these placeholders directly into text or barcode elements.') }}</flux:text>
+
+                <flux:accordion class="mt-3">
+                    <flux:accordion.item heading="{{ __('System') }}">
+                        <div class="space-y-2 text-sm">
+                            <div class="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
+                                <div class="font-medium">{{ __('Job identifier') }}</div>
+                                <code class="text-xs text-zinc-500">&#123;&#123; system.job_identifier &#125;&#125;</code>
+                                <div class="mt-1 text-xs text-zinc-500">{{ __('Generated automatically for each print job.') }}</div>
+                            </div>
+                        </div>
+                    </flux:accordion.item>
+
+                    @foreach ($this->dataSourceCatalog as $namespace => $sourceFields)
+                        <flux:accordion.item :heading="Str::headline($namespace)">
+                            <div class="space-y-2">
+                                @foreach ($sourceFields as $name => $field)
+                                    <div class="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-700">
+                                        <div class="flex items-start justify-between gap-2">
+                                            <div class="font-medium">{{ $field['label'] }}</div>
+                                            <flux:badge size="sm" :color="$field['required'] ? 'amber' : 'zinc'">{{ $field['required'] ? __('Required') : __('Optional') }}</flux:badge>
+                                        </div>
+                                        <code class="text-xs text-zinc-500">&#123;&#123; {{ $namespace }}.{{ $name }} &#125;&#125;</code>
+                                        <div class="mt-1 text-xs text-zinc-500">
+                                            {{ Str::headline($field['type']) }}
+                                            @if ($field['required_inputs'] !== [])
+                                                · {{ __('Looks up by: :inputs', ['inputs' => implode(', ', $field['required_inputs'])]) }}
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </flux:accordion.item>
+                    @endforeach
+                </flux:accordion>
+
+                @if ($this->dataSourceCatalog === [])
+                    <flux:text class="mt-2 text-xs">{{ __('No external data sources are registered yet.') }}</flux:text>
+                @endif
             </div>
         </flux:card>
 

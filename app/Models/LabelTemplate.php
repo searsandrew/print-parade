@@ -72,6 +72,14 @@ class LabelTemplate extends Model
     }
 
     /**
+     * @return HasMany<LabelTemplateDraft, $this>
+     */
+    public function drafts(): HasMany
+    {
+        return $this->hasMany(LabelTemplateDraft::class);
+    }
+
+    /**
      * @return HasOne<LabelTemplateVersion, $this>
      */
     public function publishedVersion(): HasOne

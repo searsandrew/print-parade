@@ -53,6 +53,7 @@ new #[Title('Templates & revisions')] class extends Component {
             ->with([
                 'labelStock',
                 'versions' => fn ($query) => $query->with('creator')->orderByDesc('version'),
+                'drafts' => fn ($query) => $query->where('user_id', Auth::id()),
             ])
             ->orderByDesc('is_active')
             ->orderBy('code')
@@ -269,6 +270,7 @@ new #[Title('Templates & revisions')] class extends Component {
 
     @forelse ($this->templates as $template)
         @php($latestVersion = $template->versions->first())
+        @php($workingDraft = $template->drafts->first())
         <flux:card class="space-y-5">
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -283,9 +285,15 @@ new #[Title('Templates & revisions')] class extends Component {
                 <div class="flex flex-wrap gap-2">
                     <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="editTemplate({{ $template->id }})">{{ __('Edit') }}</flux:button>
                     <flux:button size="sm" variant="ghost" icon="code-bracket" wire:click="createRevision({{ $template->id }}, {{ $latestVersion?->id ?? 'null' }})">{{ __('JSON') }}</flux:button>
-                    <flux:button size="sm" icon="paint-brush" :href="route('admin.label-template-editor', ['labelTemplate' => $template, 'labelTemplateVersion' => $latestVersion])" wire:navigate>
-                        {{ $latestVersion ? __('New revision') : __('Design first revision') }}
-                    </flux:button>
+                    @if ($workingDraft)
+                        <flux:button size="sm" variant="primary" icon="cloud-arrow-down" :href="route('admin.label-template-editor', ['labelTemplate' => $template])" wire:navigate>
+                            {{ __('Resume draft') }}
+                        </flux:button>
+                    @else
+                        <flux:button size="sm" icon="paint-brush" :href="route('admin.label-template-editor', ['labelTemplate' => $template, 'labelTemplateVersion' => $latestVersion])" wire:navigate>
+                            {{ $latestVersion ? __('New revision') : __('Design first revision') }}
+                        </flux:button>
+                    @endif
                 </div>
             </div>
 

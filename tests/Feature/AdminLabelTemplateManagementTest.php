@@ -3,6 +3,7 @@
 use App\Labels\Examples\CalibrationLabel;
 use App\Models\LabelStock;
 use App\Models\LabelTemplate;
+use App\Models\LabelTemplateDraft;
 use App\Models\LabelTemplateVersion;
 use App\Models\User;
 use Livewire\Livewire;
@@ -50,6 +51,19 @@ test('administrators can create and update a template identity', function () {
         ->and($template->code)->toBe('CMM023')
         ->and($template->name)->toBe('Component identification')
         ->and($template->is_active)->toBeFalse();
+});
+
+test('a saved working draft has a direct resume action', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+    $template = LabelTemplate::factory()->create();
+    LabelTemplateVersion::factory()->for($template)->create();
+    LabelTemplateDraft::factory()->for($template)->for($admin)->create();
+
+    Livewire::test('pages::admin.label-templates')
+        ->assertSee('Resume draft')
+        ->assertSee(route('admin.label-template-editor', ['labelTemplate' => $template]), false)
+        ->assertDontSee('New revision');
 });
 
 test('template id and stock become immutable after the first revision', function () {

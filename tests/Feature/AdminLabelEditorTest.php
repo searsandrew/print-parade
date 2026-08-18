@@ -1,5 +1,7 @@
 <?php
 
+use App\Labels\DataSources\LabelDataSource;
+use App\Labels\DataSources\LabelDataSourceRegistry;
 use App\Labels\Definitions\LabelDefinition;
 use App\Labels\Enums\LabelElementType;
 use App\Labels\Examples\CalibrationLabel;
@@ -39,6 +41,42 @@ test('a new design starts with the required job identifier selected', function (
         ->assertSet('fields', [])
         ->assertSee('aspect-ratio:', false)
         ->assertSee('maxWidth:', false);
+});
+
+test('the designer lists code-owned datasource fields and lookup inputs', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $template = designerTemplate();
+    $source = new class implements LabelDataSource
+    {
+        public function namespace(): string
+        {
+            return 'netsuite';
+        }
+
+        public function fields(): array
+        {
+            return [
+                'part_description' => [
+                    'label' => 'Part description',
+                    'type' => 'string',
+                    'required' => true,
+                    'required_inputs' => ['part_number'],
+                ],
+            ];
+        }
+
+        public function resolve(array $fields, array $input): array
+        {
+            return [];
+        }
+    };
+    $this->app->instance(LabelDataSourceRegistry::class, new LabelDataSourceRegistry([$source]));
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->assertSee('Data sources')
+        ->assertSee('Part description')
+        ->assertSee('netsuite.part_description')
+        ->assertSee('Looks up by: part_number');
 });
 
 test('the designer can use a finished-label orientation independent of media feed', function () {
