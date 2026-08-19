@@ -88,6 +88,12 @@ new #[Title('Test print label')] class extends Component {
         $this->clearPreview();
     }
 
+    public function printerIsAvailable(Printer $printer): bool
+    {
+        return app()->environment(['local', 'testing'])
+            || ($printer->printBridge->last_seen_at?->greaterThanOrEqualTo(now()->subMinutes(2)) ?? false);
+    }
+
     public function resolvePreview(LabelTestPreviewer $previewer): void
     {
         $this->resetErrorBag('testPrint');
@@ -198,9 +204,9 @@ new #[Title('Test print label')] class extends Component {
             <flux:select wire:model="printerId" :label="__('Compatible printer')" required>
                 <flux:select.option value="">{{ __('Select a printer') }}</flux:select.option>
                 @foreach ($this->printers as $printer)
-                    @php($online = $printer->printBridge->last_seen_at?->greaterThanOrEqualTo(now()->subMinutes(2)) ?? false)
-                    <flux:select.option wire:key="test-printer-{{ $printer->id }}" :value="$printer->id" :disabled="! $online">
-                        {{ $printer->name }}{{ $printer->location ? ' · '.$printer->location : '' }}{{ $online ? '' : ' · Offline' }}
+                    @php($available = $this->printerIsAvailable($printer))
+                    <flux:select.option wire:key="test-printer-{{ $printer->id }}" :value="$printer->id" :disabled="! $available">
+                        {{ $printer->name }}{{ $printer->location ? ' · '.$printer->location : '' }}{{ $available ? '' : ' · Offline' }}
                     </flux:select.option>
                 @endforeach
             </flux:select>

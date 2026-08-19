@@ -43,10 +43,14 @@ test('an administrator can resolve live values and queue a quantity one test pri
     $this->actingAs($admin);
     $this->app->bind(NetSuiteItemRepository::class, TestPrintNetSuiteItems::class);
     $template = testPrintTemplate();
-    $bridge = PrintBridge::factory()->create(['last_seen_at' => now()]);
+    $bridge = PrintBridge::factory()->create(['last_seen_at' => null]);
     $printer = Printer::factory()->for($bridge)->for($template->labelStock)->create();
 
-    Livewire::test('pages::admin.label-test-print', ['labelTemplate' => $template])
+    $component = Livewire::test('pages::admin.label-test-print', ['labelTemplate' => $template]);
+
+    expect($component->instance()->printerIsAvailable($printer))->toBeTrue();
+
+    $component
         ->assertSet('values.part_number', '')
         ->set('values.part_number', 'CMM023')
         ->call('resolvePreview')
