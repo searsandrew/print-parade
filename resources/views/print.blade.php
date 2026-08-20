@@ -75,7 +75,7 @@
                     </div>
                     <div x-show="requiresOperatorPin">
                         <label for="operator" class="mb-2 block text-base font-semibold">Your name</label>
-                        <select id="operator" x-model="userId" required class="min-h-14 w-full rounded-xl border-zinc-300 bg-white px-4 text-lg shadow-sm focus:border-zinc-900 focus:ring-zinc-900">
+                        <select id="operator" x-model="userId" x-bind:required="requiresOperatorPin" x-bind:disabled="!requiresOperatorPin" class="min-h-14 w-full rounded-xl border-zinc-300 bg-white px-4 text-lg shadow-sm focus:border-zinc-900 focus:ring-zinc-900">
                             <option value="">Select your name</option>
                             <template x-for="operator in catalog.operators" :key="operator.id">
                                 <option :value="operator.id" x-text="operator.name"></option>
@@ -84,7 +84,7 @@
                     </div>
                     <div x-show="requiresOperatorPin">
                         <label for="pin" class="mb-2 block text-base font-semibold">PIN</label>
-                        <flux:input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" x-model="pin" x-bind:required="requiresOperatorPin" class:input="min-h-14 text-center text-2xl tracking-[0.35em]" />
+                        <flux:input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" x-model="pin" x-bind:required="requiresOperatorPin" x-bind:disabled="!requiresOperatorPin" class:input="min-h-14 text-center text-2xl tracking-[0.35em]" />
                     </div>
                     <div x-show="!requiresOperatorPin" class="sm:col-span-2">
                         <flux:callout icon="user-circle" color="zinc">

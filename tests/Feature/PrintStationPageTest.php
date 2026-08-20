@@ -11,7 +11,9 @@ test('the public print station renders the scanner friendly submission shell', f
         ->assertSee('Select a printer')
         ->assertSee('Select your name')
         ->assertSee('Queue print job')
-        ->assertSee('x-data="printStation"', false);
+        ->assertSee('x-data="printStation"', false)
+        ->assertSee('x-bind:required="requiresOperatorPin"', false)
+        ->assertSee('x-bind:disabled="!requiresOperatorPin"', false);
 });
 
 test('guests are redirected to login before using the print station', function () {

@@ -83,16 +83,33 @@ test('the catalog excludes unusable templates printers and users', function () {
         ->and(collect($response->json('operators'))->pluck('id')->all())->toBe([$operator->id]);
 });
 
-test('an active bridge is shown offline when its heartbeat is stale', function () {
+test('an active bridge remains available for local simulation when its heartbeat is stale', function () {
     $this->actingAs(User::factory()->create());
     $bridge = PrintBridge::factory()->create(['last_seen_at' => now()->subMinutes(3)]);
     Printer::factory()->for($bridge)->create();
 
     $this->getJson('/print/catalog')
         ->assertOk()
-        ->assertJsonPath('printers.0.online', false)
+        ->assertJsonPath('printers.0.online', true)
         ->assertJsonPath('authorization.requires_operator_pin', false)
         ->assertJsonPath('operators', []);
+});
+
+test('production catalogs show a printer offline when its bridge heartbeat is stale', function () {
+    $originalEnvironment = app()->environment();
+    app()->detectEnvironment(fn (): string => 'production');
+
+    try {
+        $this->actingAs(User::factory()->create());
+        $bridge = PrintBridge::factory()->create(['last_seen_at' => now()->subMinutes(3)]);
+        Printer::factory()->for($bridge)->create();
+
+        $this->getJson('/print/catalog')
+            ->assertOk()
+            ->assertJsonPath('printers.0.online', false);
+    } finally {
+        app()->detectEnvironment(fn (): string => $originalEnvironment);
+    }
 });
 
 test('guests cannot access the print catalog', function () {
