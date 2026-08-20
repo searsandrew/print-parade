@@ -75,6 +75,42 @@ public sealed class BridgeApiClientTests
         Assert.Equal("claim-token", document.RootElement.GetProperty("claim_token").GetString());
     }
 
+    [Fact]
+    public async Task ProcessorPrintsAndCompletesAValidZplJob()
+    {
+        var requests = new Queue<Func<HttpResponseMessage>>([
+            () => JobResponse(),
+            () => JsonResponse(new { status = "completed" }),
+        ]);
+        var handler = new RecordingHandler(_ => requests.Dequeue()());
+        var spooler = new RecordingSpooler();
+        var processor = new PrintJobProcessor(CreateClient(handler), spooler);
+
+        var processed = await processor.ProcessNextAsync(CancellationToken.None);
+
+        Assert.True(processed);
+        Assert.Equal("01ABC", spooler.Job?.JobId);
+        Assert.EndsWith("/api/bridge/jobs/01ABC/complete", handler.Requests[1].RequestUri?.ToString());
+    }
+
+    [Fact]
+    public async Task ProcessorReportsSpoolerFailures()
+    {
+        var requests = new Queue<Func<HttpResponseMessage>>([
+            () => JobResponse(),
+            () => JsonResponse(new { status = "failed" }),
+        ]);
+        var handler = new RecordingHandler(_ => requests.Dequeue()());
+        var processor = new PrintJobProcessor(CreateClient(handler), new ThrowingSpooler());
+
+        var processed = await processor.ProcessNextAsync(CancellationToken.None);
+
+        Assert.True(processed);
+        Assert.EndsWith("/api/bridge/jobs/01ABC/fail", handler.Requests[1].RequestUri?.ToString());
+        using var document = JsonDocument.Parse(handler.RequestBodies[1]!);
+        Assert.Contains("queue unavailable", document.RootElement.GetProperty("message").GetString());
+    }
+
     private static BridgeApiClient CreateClient(RecordingHandler handler)
     {
         return new BridgeApiClient(
@@ -91,11 +127,32 @@ public sealed class BridgeApiClientTests
         };
     }
 
+    private static HttpResponseMessage JobResponse()
+    {
+        const string Payload = "^XA^FDTEST^FS^XZ";
+
+        return JsonResponse(new
+        {
+            job_id = "01ABC",
+            claim_token = "claim-token",
+            lease_expires_at = "2026-08-20T15:00:00Z",
+            printer = "packing-zebra-01",
+            language = "zpl",
+            quantity = 2,
+            payload = Payload,
+            checksum = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(Payload))).ToLowerInvariant(),
+        });
+    }
+
     private sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {
         public HttpRequestMessage? Request { get; private set; }
 
         public string? RequestBody { get; private set; }
+
+        public List<HttpRequestMessage> Requests { get; } = [];
+
+        public List<string?> RequestBodies { get; } = [];
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
@@ -105,8 +162,30 @@ public sealed class BridgeApiClientTests
             RequestBody = request.Content is null
                 ? null
                 : await request.Content.ReadAsStringAsync(cancellationToken);
+            Requests.Add(request);
+            RequestBodies.Add(RequestBody);
 
             return respond(request);
+        }
+    }
+
+    private sealed class RecordingSpooler : IPrintSpooler
+    {
+        public ClaimedPrintJob? Job { get; private set; }
+
+        public Task PrintAsync(ClaimedPrintJob job, CancellationToken cancellationToken = default)
+        {
+            Job = job;
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class ThrowingSpooler : IPrintSpooler
+    {
+        public Task PrintAsync(ClaimedPrintJob job, CancellationToken cancellationToken = default)
+        {
+            throw new IOException("queue unavailable");
         }
     }
 }
