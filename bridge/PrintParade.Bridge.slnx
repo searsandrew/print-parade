@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PrintParade.Bridge.Core/PrintParade.Bridge.Core.csproj" />
+    <Project Path="src/PrintParade.Bridge.Worker/PrintParade.Bridge.Worker.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PrintParade.Bridge.Core.Tests/PrintParade.Bridge.Core.Tests.csproj" />
+  </Folder>
+</Solution>
