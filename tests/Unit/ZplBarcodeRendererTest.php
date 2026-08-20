@@ -14,8 +14,7 @@ test('upc a uses canonical data and renders human-readable text at the element b
     $zpl = renderBarcode($element);
 
     expect($zpl)
-        ->toContain('^BY2,2,120^FO58,92^BUN,120,N,N^FD03600029145^FS')
-        ->toContain('^FO40,216^A0N,24,14^FB304,1,0,C,0^FH\\^FD036000291452^FS');
+        ->toContain('^BY2,2,120^FO79,92^BUN,120,Y,N^FD03600029145^FS');
 });
 
 test('shortening upc bars preserves the human-readable baseline and moves the bar origin down', function () {
@@ -30,10 +29,10 @@ test('shortening upc bars preserves the human-readable baseline and moves the ba
         'bar_height' => 10,
     ]));
 
-    expect($tall)->toContain('^FO58,92^BUN,120')
-        ->and($short)->toContain('^FO58,132^BUN,80')
-        ->and($tall)->toContain('^FO40,216^A0N')
-        ->and($short)->toContain('^FO40,216^A0N');
+    expect($tall)->toContain('^FO79,92^BUN,120')
+        ->and($short)->toContain('^FO79,132^BUN,80')
+        ->and($tall)->toContain(',Y,N^FD03600029145^FS')
+        ->and($short)->toContain(',Y,N^FD03600029145^FS');
 });
 
 test('linear barcode text is shown by default and can be disabled', function () {
@@ -92,7 +91,7 @@ test('rotated barcodes use orientation aware field origins', function () {
 
     expect($zpl)
         ->toContain('^BUR,')
-        ->toContain('^A0R,');
+        ->toContain('^FO40,79^BUR,172,Y,N');
 });
 
 function renderBarcode(array $element): string

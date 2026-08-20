@@ -18,7 +18,7 @@ test('text is rendered as a complete zpl label at the selected resolution', func
             '^PW812',
             '^LL406',
             '^LH0,0',
-            '^FO40,40^A0N,32,19^FB719,2,0,L,0^FH\\^FDPart ABC-123^FS',
+            '^FO40,40^A0N,32,19^FH\\^FDPart ABC-123^FS',
             '^XZ',
         ]));
 });
@@ -41,8 +41,8 @@ test('semantic fonts rotation alignment and bold weight map to zpl', function ()
     );
 
     expect($zpl)
+        ->toContain('^FO40,276')
         ->toContain('^AAR,32,19')
-        ->toContain('^FB719,2,0,C,0')
         ->toContain('^FDCentered text^FS');
 });
 
@@ -58,6 +58,19 @@ test('a rotated design canvas maps elements into media coordinates', function ()
         ->toContain('^FO708,40')
         ->toContain('^A0R,');
 });
+
+test('each rotated text orientation uses its zpl leading corner', function (int $rotation, string $origin) {
+    $zpl = (new ZplRenderer)->render(
+        new ResolvedLabelDefinition([zplTextElement(['rotation' => $rotation])], []),
+        new LabelRenderContext(101.6, 100, 203),
+    );
+
+    expect($zpl)->toContain($origin);
+})->with([
+    'clockwise 90' => [90, '^FO40,40'],
+    'clockwise 180' => [180, '^FO759,104'],
+    'clockwise 270' => [270, '^FO40,759'],
+]);
 
 test('text field data is escaped and bold text is overprinted by one dot', function () {
     $element = zplTextElement([
@@ -76,8 +89,8 @@ test('text field data is escaped and bold text is overprinted by one dot', funct
     );
 
     expect($zpl)
-        ->toContain('^FO40,40^A0N,32,19^FB719,2,0,R,0^FH\\^FDA\\5EB\\7EC\\5CD^FS')
-        ->toContain('^FO41,40^A0N,32,19');
+        ->toContain('^FO685,40^A0N,32,19^FH\\^FDA\\5EB\\7EC\\5CD^FS')
+        ->toContain('^FO686,40^A0N,32,19');
 });
 
 test('lines and rectangles render as zpl graphic boxes', function () {

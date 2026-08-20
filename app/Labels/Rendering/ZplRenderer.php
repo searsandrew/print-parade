@@ -74,15 +74,77 @@ final readonly class ZplRenderer implements LabelRenderer
         $x = $context->millimetersToDots($element['x']);
         $y = $context->millimetersToDots($element['y']);
         $text = $this->escapeFieldData((string) $element['value']);
+        $estimatedTextWidth = $this->estimatedTextWidth(
+            (string) $element['value'],
+            SemanticFontFamily::from($style['font_family']),
+            $fontWidth,
+        );
+        $isSingleLine = ! str_contains((string) $element['value'], "\n") && $estimatedTextWidth <= $fieldWidth;
 
-        $field = "^FO{$x},{$y}^A{$font}{$orientation},{$fontHeight},{$fontWidth}^FB{$fieldWidth},{$maximumLines},0,{$alignment},0^FH\\^FD{$text}^FS";
+        if ($isSingleLine) {
+            $offset = match (LabelTextAlignment::from($style['alignment'])) {
+                LabelTextAlignment::Left => 0,
+                LabelTextAlignment::Center => (int) floor(($fieldWidth - $estimatedTextWidth) / 2),
+                LabelTextAlignment::Right => $fieldWidth - $estimatedTextWidth,
+            };
+            [$x, $y] = $this->offsetTextOrigin($element, $context, $offset);
+            $field = "^FO{$x},{$y}^A{$font}{$orientation},{$fontHeight},{$fontWidth}^FH\\^FD{$text}^FS";
+        } else {
+            $field = "^FO{$x},{$y}^A{$font}{$orientation},{$fontHeight},{$fontWidth}^FB{$fieldWidth},{$maximumLines},0,{$alignment},0^FH\\^FD{$text}^FS";
+        }
 
         if (LabelFontWeight::from($style['font_weight']) === LabelFontWeight::Bold) {
             $boldX = $x + 1;
-            $field .= "^FO{$boldX},{$y}^A{$font}{$orientation},{$fontHeight},{$fontWidth}^FB{$fieldWidth},{$maximumLines},0,{$alignment},0^FH\\^FD{$text}^FS";
+            $field .= $isSingleLine
+                ? "^FO{$boldX},{$y}^A{$font}{$orientation},{$fontHeight},{$fontWidth}^FH\\^FD{$text}^FS"
+                : "^FO{$boldX},{$y}^A{$font}{$orientation},{$fontHeight},{$fontWidth}^FB{$fieldWidth},{$maximumLines},0,{$alignment},0^FH\\^FD{$text}^FS";
         }
 
         return $field;
+    }
+
+    /**
+     * ZPL anchors rotated fonts at the leading corner for their orientation,
+     * rather than at the element's unrotated top-left corner.
+     *
+     * @param  array<string, mixed>  $element
+     * @return array{int, int}
+     */
+    private function offsetTextOrigin(array $element, LabelRenderContext $context, int $offset): array
+    {
+        $x = $context->millimetersToDots($element['x']);
+        $y = $context->millimetersToDots($element['y']);
+        $width = $context->millimetersToDots($element['width']);
+
+        return match (LabelRotation::from($element['rotation'])) {
+            LabelRotation::None => [$x + $offset, $y],
+            LabelRotation::Clockwise90 => [$x, $y + $offset],
+            LabelRotation::Clockwise180 => [$x + $width - $offset, $y + $context->millimetersToDots($element['height'])],
+            LabelRotation::Clockwise270 => [$x, $y + $width - $offset],
+        };
+    }
+
+    private function estimatedTextWidth(string $value, SemanticFontFamily $fontFamily, int $fontWidth): int
+    {
+        if ($fontFamily === SemanticFontFamily::Monospace) {
+            return mb_strlen($value) * $fontWidth;
+        }
+
+        $units = 0.0;
+
+        foreach (mb_str_split($value) as $character) {
+            $units += match (true) {
+                $character === ' ' => 0.33,
+                str_contains('.,:;!|ilI1', $character) => 0.3,
+                str_contains('MW@%', $character) => 0.9,
+                preg_match('/[A-Z]/', $character) === 1 => 0.68,
+                preg_match('/[0-9]/', $character) === 1 => 0.56,
+                preg_match('/[a-z]/', $character) === 1 => 0.52,
+                default => 0.4,
+            };
+        }
+
+        return max(1, (int) round($units * $fontWidth));
     }
 
     /**

@@ -38,12 +38,21 @@ final class ZplBarcodeRenderer
         }
 
         $moduleWidth = $this->linearModuleWidth($element, $context, self::UPC_A_TOTAL_MODULES);
-        [$barY, $barHeight, $textY] = $this->linearVerticalLayout($element, $context);
-        [$originX, $originY] = $this->orientedOrigin($element, $context, 9 * $moduleWidth, $barY);
+        $symbolWidth = self::UPC_A_TOTAL_MODULES * $moduleWidth;
+        $horizontalOffset = (int) floor(($context->millimetersToDots($element['width']) - $symbolWidth) / 2);
+        [$barY, $barHeight] = $this->linearVerticalLayout($element, $context);
+        [$originX, $originY] = $this->orientedOrigin(
+            $element,
+            $context,
+            $horizontalOffset,
+            $barY,
+            $symbolWidth,
+            $barHeight,
+        );
         $orientation = $this->orientation($element);
-        $textCommand = $this->humanReadableText($element, $context, $value, $textY);
+        $printInterpretationLine = ($element['show_text'] ?? true) ? 'Y' : 'N';
 
-        return "^BY{$moduleWidth},2,{$barHeight}^FO{$originX},{$originY}^BU{$orientation},{$barHeight},N,N^FD".substr($value, 0, 11)."^FS{$textCommand}";
+        return "^BY{$moduleWidth},2,{$barHeight}^FO{$originX},{$originY}^BU{$orientation},{$barHeight},{$printInterpretationLine},N^FD".substr($value, 0, 11).'^FS';
     }
 
     /**
@@ -60,7 +69,14 @@ final class ZplBarcodeRenderer
         $totalModules = (11 * strlen($value)) + 55;
         $moduleWidth = $this->linearModuleWidth($element, $context, $totalModules);
         [$barY, $barHeight, $textY] = $this->linearVerticalLayout($element, $context);
-        [$originX, $originY] = $this->orientedOrigin($element, $context, 10 * $moduleWidth, $barY);
+        [$originX, $originY] = $this->orientedOrigin(
+            $element,
+            $context,
+            10 * $moduleWidth,
+            $barY,
+            ($totalModules - 20) * $moduleWidth,
+            $barHeight,
+        );
         $orientation = $this->orientation($element);
         $textCommand = $this->humanReadableText($element, $context, $value, $textY);
         $encodedValue = $this->escapeFieldData('>:'.$value);
@@ -94,7 +110,14 @@ final class ZplBarcodeRenderer
         );
         $moduleWidth = $this->moduleWidth($element, $context, $boxDots, $totalModules, 100);
         $quietZone = 4 * $moduleWidth;
-        [$x, $y] = $this->orientedOrigin($element, $context, $quietZone, $quietZone);
+        [$x, $y] = $this->orientedOrigin(
+            $element,
+            $context,
+            $quietZone,
+            $quietZone,
+            $symbolModules * $moduleWidth,
+            $symbolModules * $moduleWidth,
+        );
         $orientation = $this->orientation($element);
         $data = $this->escapeFieldData($errorCorrection->zplValue().'A,'.$value);
 
@@ -176,19 +199,34 @@ final class ZplBarcodeRenderer
         $textHeight = max(12, $context->millimetersToDots(3.0));
         $fontWidth = max(1, (int) round($textHeight * 0.6));
         $width = $context->millimetersToDots($element['width']);
-        [$x, $y] = $this->orientedOrigin($element, $context, 0, $textY);
+        $textWidth = min($width, mb_strlen($value) * $fontWidth);
+        $textOffset = max(0, (int) floor(($width - $textWidth) / 2));
+        [$x, $y] = $this->orientedOrigin(
+            $element,
+            $context,
+            $textOffset,
+            $textY,
+            $textWidth,
+            $textHeight,
+        );
         $orientation = $this->orientation($element);
         $text = $this->escapeFieldData($value);
 
-        return "^FO{$x},{$y}^A0{$orientation},{$textHeight},{$fontWidth}^FB{$width},1,0,C,0^FH\\^FD{$text}^FS";
+        return "^FO{$x},{$y}^A0{$orientation},{$textHeight},{$fontWidth}^FH\\^FD{$text}^FS";
     }
 
     /**
      * @param  array<string, mixed>  $element
      * @return array{int, int}
      */
-    private function orientedOrigin(array $element, LabelRenderContext $context, int $localX, int $localY): array
-    {
+    private function orientedOrigin(
+        array $element,
+        LabelRenderContext $context,
+        int $localX,
+        int $localY,
+        int $contentWidth,
+        int $contentHeight,
+    ): array {
         $x = $context->millimetersToDots($element['x']);
         $y = $context->millimetersToDots($element['y']);
         $width = $context->millimetersToDots($element['width']);
@@ -196,9 +234,9 @@ final class ZplBarcodeRenderer
 
         return match (LabelRotation::from($element['rotation'])) {
             LabelRotation::None => [$x + $localX, $y + $localY],
-            LabelRotation::Clockwise90 => [$x + $height - $localY, $y + $localX],
-            LabelRotation::Clockwise180 => [$x + $width - $localX, $y + $height - $localY],
-            LabelRotation::Clockwise270 => [$x + $localY, $y + $width - $localX],
+            LabelRotation::Clockwise90 => [$x + $localY, $y + $localX],
+            LabelRotation::Clockwise180 => [$x + $width - $localX - $contentWidth, $y + $height - $localY - $contentHeight],
+            LabelRotation::Clockwise270 => [$x + $localY, $y + $width - $localX - $contentWidth],
         };
     }
 

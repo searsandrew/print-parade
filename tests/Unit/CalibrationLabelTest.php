@@ -53,8 +53,7 @@ test('the calibration label renders at supported printer resolutions', function 
         ->toStartWith("^XA\n^CI28\n^PW{$width}")
         ->toContain("^BY{$code128Module},2")
         ->toContain("^BY{$upcModule},2")
-        ->toContain('^FD03600029145^FS')
-        ->toContain('^FD036000291452^FS')
+        ->toContain('Y,N^FD03600029145^FS')
         ->toContain('^FDMA,https://example.com/p/ABC-123^FS')
         ->toContain('^FDCMM023 (0826) | A7K29Q4M^FS')
         ->not->toContain('{{');
