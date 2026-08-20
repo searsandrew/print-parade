@@ -3,6 +3,7 @@
 namespace App\Labels\Definitions;
 
 use Illuminate\Contracts\Support\Arrayable;
+use InvalidArgumentException;
 use JsonSerializable;
 
 /**
@@ -10,6 +11,9 @@ use JsonSerializable;
  */
 final readonly class ResolvedLabelDefinition implements Arrayable, JsonSerializable
 {
+    /** @var 0|90|180|270 */
+    private int $canvasRotation;
+
     /**
      * @param  list<array<string, mixed>>  $elements
      * @param  array<string, scalar|null>  $values
@@ -17,8 +21,16 @@ final readonly class ResolvedLabelDefinition implements Arrayable, JsonSerializa
     public function __construct(
         private array $elements,
         private array $values,
-        private int $canvasRotation = 0,
-    ) {}
+        int $canvasRotation = 0,
+    ) {
+        $this->canvasRotation = match ($canvasRotation) {
+            0 => 0,
+            90 => 90,
+            180 => 180,
+            270 => 270,
+            default => throw new InvalidArgumentException('A resolved label canvas must use a supported rotation.'),
+        };
+    }
 
     /**
      * @return list<array<string, mixed>>
@@ -36,6 +48,7 @@ final readonly class ResolvedLabelDefinition implements Arrayable, JsonSerializa
         return $this->values;
     }
 
+    /** @return 0|90|180|270 */
     public function canvasRotation(): int
     {
         return $this->canvasRotation;

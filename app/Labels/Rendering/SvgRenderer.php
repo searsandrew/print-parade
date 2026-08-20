@@ -55,6 +55,7 @@ final readonly class SvgRenderer implements LabelRenderer
 
     /**
      * @param  list<string>  $elements
+     * @param  0|90|180|270  $rotation
      * @return list<string>
      */
     private function orientCanvas(array $elements, int $rotation, LabelRenderContext $context): array

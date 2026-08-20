@@ -11,7 +11,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
-/** @property int $id @property string $name @property string|null $token_hash @property bool $is_active @property Carbon|null $last_seen_at */
+/**
+ * @property int $id
+ * @property string $name
+ * @property string|null $token_hash
+ * @property bool $is_active
+ * @property Carbon|null $last_seen_at
+ */
 #[Fillable(['name', 'is_active'])]
 #[Hidden(['token_hash'])]
 class PrintBridge extends Model

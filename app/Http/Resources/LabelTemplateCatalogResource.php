@@ -2,9 +2,12 @@
 
 namespace App\Http\Resources;
 
+use App\Models\LabelTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use LogicException;
 
+/** @mixin LabelTemplate */
 class LabelTemplateCatalogResource extends JsonResource
 {
     /**
@@ -14,7 +17,13 @@ class LabelTemplateCatalogResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $definition = $this->publishedVersion->definition->toArray();
+        $publishedVersion = $this->publishedVersion;
+
+        if ($publishedVersion === null) {
+            throw new LogicException('A catalog label template must have a published version.');
+        }
+
+        $definition = $publishedVersion->definition->toArray();
 
         return [
             'id' => $this->id,
@@ -22,8 +31,8 @@ class LabelTemplateCatalogResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'version' => [
-                'id' => $this->publishedVersion->id,
-                'revision_code' => $this->publishedVersion->revision_code,
+                'id' => $publishedVersion->id,
+                'revision_code' => $publishedVersion->revision_code,
             ],
             'stock' => [
                 'id' => $this->labelStock->id,

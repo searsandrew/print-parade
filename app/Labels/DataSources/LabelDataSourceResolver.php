@@ -51,10 +51,6 @@ final readonly class LabelDataSourceResolver
                     throw new InvalidArgumentException("Data source value {$namespace}.{$field} is unavailable.");
                 }
 
-                if (! is_scalar($values[$field]) && $values[$field] !== null) {
-                    throw new InvalidArgumentException("Data source value {$namespace}.{$field} must be scalar or null.");
-                }
-
                 $this->validateResolvedValue($namespace, $field, $catalog[$field], $values[$field]);
 
                 if (($catalog[$field]['format'] ?? null) === 'upc_a' && is_string($values[$field]) && $values[$field] !== '') {
@@ -81,7 +77,7 @@ final readonly class LabelDataSourceResolver
             preg_match_all(self::PLACEHOLDER_PATTERN, $element['value'], $matches, PREG_SET_ORDER);
 
             foreach ($matches as $match) {
-                if (! isset($match[2]) || $match[2] === '' || $match[1] === 'system') {
+                if (! isset($match[2]) || $match[1] === 'system') {
                     continue;
                 }
 

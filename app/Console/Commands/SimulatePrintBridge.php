@@ -8,6 +8,7 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
+use LogicException;
 use RuntimeException;
 
 #[Signature('print-bridge:simulate
@@ -146,10 +147,16 @@ class SimulatePrintBridge extends Command
             return 'leave-claimed';
         }
 
-        return $this->choice(
+        $disposition = $this->choice(
             'What should happen to the simulated job?',
             ['leave-claimed', 'complete', 'fail'],
             'leave-claimed',
         );
+
+        if (! is_string($disposition)) {
+            throw new LogicException('The simulated job disposition must be a single choice.');
+        }
+
+        return $disposition;
     }
 }

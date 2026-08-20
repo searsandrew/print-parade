@@ -1,6 +1,7 @@
 <?php
 
 use App\Labels\Definitions\LabelDefinition;
+use App\Labels\Definitions\ResolvedLabelDefinition;
 use Illuminate\Support\Str;
 
 function textElement(array $overrides = []): array
@@ -54,6 +55,10 @@ test('a definition stores its finished-label canvas rotation', function () {
     expect($definition->toArray()['canvas_rotation'])->toBe(90)
         ->and($definition->resolve([], [])->canvasRotation())->toBe(90);
 });
+
+test('resolved definitions reject unsupported canvas rotations', function () {
+    new ResolvedLabelDefinition([], [], 45);
+})->throws(InvalidArgumentException::class, 'supported rotation');
 
 test('element coordinates and dimensions are required in millimeters', function (array $overrides) {
     LabelDefinition::fromArray([

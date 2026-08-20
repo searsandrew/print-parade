@@ -21,6 +21,7 @@ use LogicException;
  * @property int $dpi
  * @property string $bridge_identifier
  * @property bool $is_active
+ * @property-read PrintBridge $printBridge
  */
 #[Fillable(['print_bridge_id', 'label_stock_id', 'name', 'location', 'language', 'dpi', 'bridge_identifier', 'is_active'])]
 class Printer extends Model

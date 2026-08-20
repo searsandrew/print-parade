@@ -21,6 +21,8 @@ use LogicException;
  * @property string|null $description
  * @property bool $is_active
  * @property int $versions_count
+ * @property-read LabelStock $labelStock
+ * @property-read LabelTemplateVersion|null $publishedVersion
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */

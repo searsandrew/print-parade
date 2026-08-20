@@ -18,16 +18,18 @@ class PrintJobSubmissionController extends Controller
     public function __invoke(SubmitPrintJobRequest $request, PrintJobSubmitter $printJobSubmitter): JsonResponse
     {
         $validated = $request->validated();
-        /** @var User $submitter */
+        /** @var User $authenticatedUser */
         $authenticatedUser = $request->user();
         $operator = isset($validated['user_id'])
-            ? User::query()->findOrFail($validated['user_id'])
+            ? User::query()->whereKey($validated['user_id'])->firstOrFail()
             : null;
+        $template = LabelTemplate::query()->whereKey($validated['label_template_id'])->firstOrFail();
+        $printer = Printer::query()->whereKey($validated['printer_id'])->firstOrFail();
 
         try {
             $job = $printJobSubmitter->submit(
-                LabelTemplate::query()->findOrFail($validated['label_template_id']),
-                Printer::query()->findOrFail($validated['printer_id']),
+                $template,
+                $printer,
                 $authenticatedUser,
                 $operator,
                 $validated['pin'] ?? null,
