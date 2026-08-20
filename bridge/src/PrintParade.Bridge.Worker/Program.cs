@@ -1,6 +1,9 @@
 using System.ComponentModel;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using PrintParade.Bridge.Core;
 using PrintParade.Bridge.Windows;
+using PrintParade.Bridge.Worker;
 
 if (!OperatingSystem.IsWindows())
 {
@@ -10,10 +13,16 @@ if (!OperatingSystem.IsWindows())
 
 var configurationPath = ConfigurationPath(args);
 var configurationStore = new WindowsBridgeConfigurationStore();
+var command = Command(args);
 
-if (args.Contains("setup", StringComparer.OrdinalIgnoreCase))
+if (string.Equals(command, "setup", StringComparison.OrdinalIgnoreCase))
 {
     return await RunSetupAsync(configurationStore, configurationPath);
+}
+
+if (string.Equals(command, "uninstall", StringComparison.OrdinalIgnoreCase))
+{
+    return await RunUninstallAsync();
 }
 
 BridgeConfiguration configuration;
@@ -25,50 +34,39 @@ try
 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or Win32Exception)
 {
     Console.Error.WriteLine($"Unable to load bridge configuration: {exception.Message}");
-    Console.Error.WriteLine("Run 'PrintParade.Bridge.Worker.exe setup' to configure this PC.");
+    Console.Error.WriteLine("Run 'PrintParadeBridge.exe setup' to configure this PC.");
     return 1;
 }
 
-using var shutdown = new CancellationTokenSource();
-Console.CancelKeyPress += (_, eventArgs) =>
+if (string.Equals(command, "install", StringComparison.OrdinalIgnoreCase))
 {
-    eventArgs.Cancel = true;
-    shutdown.Cancel();
-};
-
-using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-var bridgeClient = new BridgeApiClient(httpClient, configuration.ServerUrl, configuration.BridgeToken);
-var processor = new PrintJobProcessor(bridgeClient, new WindowsRawPrintSpooler());
-
-Console.WriteLine("Starting the Print Parade bridge. Press Ctrl+C to stop.");
-
-while (!shutdown.IsCancellationRequested)
-{
-    try
-    {
-        var heartbeat = await bridgeClient.SendHeartbeatAsync(shutdown.Token);
-        var processedJob = await processor.ProcessNextAsync(shutdown.Token);
-
-        if (processedJob)
-        {
-            Console.WriteLine($"Bridge {heartbeat.BridgeId} processed a print job.");
-        }
-
-        await Task.Delay(TimeSpan.FromSeconds(processedJob ? 0 : 2), shutdown.Token);
-    }
-    catch (OperationCanceledException) when (shutdown.IsCancellationRequested)
-    {
-        break;
-    }
-    catch (Exception exception) when (exception is HttpRequestException or BridgeProtocolException)
-    {
-        Console.Error.WriteLine($"Print Parade is unavailable: {exception.Message}");
-        await DelayAfterFailureAsync(shutdown.Token);
-    }
+    return await RunInstallAsync();
 }
 
-Console.WriteLine("Print Parade bridge stopped.");
+var builder = Host.CreateApplicationBuilder();
+builder.Services.AddWindowsService(options => options.ServiceName = WindowsServiceInstaller.DisplayName);
+builder.Services.AddSingleton(configuration);
+builder.Services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(30) });
+builder.Services.AddSingleton(serviceProvider =>
+{
+    var httpClient = serviceProvider.GetRequiredService<HttpClient>();
+    var settings = serviceProvider.GetRequiredService<BridgeConfiguration>();
+
+    return new BridgeApiClient(httpClient, settings.ServerUrl, settings.BridgeToken);
+});
+builder.Services.AddSingleton<IPrintSpooler, WindowsRawPrintSpooler>();
+builder.Services.AddSingleton<PrintJobProcessor>();
+builder.Services.AddHostedService<BridgeBackgroundService>();
+
+await builder.Build().RunAsync();
 return 0;
+
+static string? Command(string[] arguments)
+{
+    string[] commands = ["setup", "install", "uninstall", "run"];
+
+    return arguments.FirstOrDefault(argument => commands.Contains(argument, StringComparer.OrdinalIgnoreCase));
+}
 
 static string? ConfigurationPath(string[] arguments)
 {
@@ -143,6 +141,43 @@ static async Task<int> RunSetupAsync(WindowsBridgeConfigurationStore store, stri
     }
 }
 
+static async Task<int> RunInstallAsync()
+{
+    try
+    {
+        var executablePath = Environment.ProcessPath
+            ?? throw new InvalidOperationException("The bridge executable path could not be determined.");
+        await WindowsServiceInstaller.InstallAsync(executablePath);
+        Console.WriteLine("The Print Parade Bridge service was installed and started.");
+        Console.WriteLine("Do not move or delete this executable while the service is installed.");
+
+        return 0;
+    }
+    catch (Exception exception) when (exception is IOException or InvalidOperationException or Win32Exception)
+    {
+        Console.Error.WriteLine($"Service installation failed: {exception.Message}");
+        Console.Error.WriteLine("Run this command from an Administrator terminal.");
+        return 1;
+    }
+}
+
+static async Task<int> RunUninstallAsync()
+{
+    try
+    {
+        await WindowsServiceInstaller.UninstallAsync();
+        Console.WriteLine("The Print Parade Bridge service was removed.");
+
+        return 0;
+    }
+    catch (Exception exception) when (exception is Win32Exception)
+    {
+        Console.Error.WriteLine($"Service removal failed: {exception.Message}");
+        Console.Error.WriteLine("Run this command from an Administrator terminal.");
+        return 1;
+    }
+}
+
 static string ReadSecret()
 {
     if (Console.IsInputRedirected)
@@ -172,16 +207,5 @@ static string ReadSecret()
         {
             secret.Append(key.KeyChar);
         }
-    }
-}
-
-static async Task DelayAfterFailureAsync(CancellationToken cancellationToken)
-{
-    try
-    {
-        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
-    }
-    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-    {
     }
 }
