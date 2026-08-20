@@ -21,6 +21,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int $id
  * @property string $name
  * @property string $email
+ * @property string|null $microsoft_tenant_id
+ * @property string|null $microsoft_object_id
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property string|null $pin_hash

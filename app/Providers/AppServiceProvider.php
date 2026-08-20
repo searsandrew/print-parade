@@ -11,9 +11,12 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use SocialiteProviders\Manager\SocialiteWasCalled;
+use SocialiteProviders\Microsoft\Provider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -33,6 +36,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Event::listen(function (SocialiteWasCalled $event): void {
+            $event->extendSocialite('microsoft', Provider::class);
+        });
+
         $this->configureDefaults();
         $this->configureRateLimiting();
     }

@@ -5,6 +5,16 @@
         <!-- Session Status -->
         <x-auth-session-status class="text-center" :status="session('status')" />
 
+        <flux:button variant="primary" :href="route('auth.microsoft.redirect')" class="w-full">
+            {{ __('Continue with Microsoft') }}
+        </flux:button>
+
+        <div class="flex items-center gap-3" aria-hidden="true">
+            <flux:separator class="flex-1" />
+            <flux:text size="sm">{{ __('or use a local account') }}</flux:text>
+            <flux:separator class="flex-1" />
+        </div>
+
         <x-passkey-verify />
 
         <form method="POST" action="{{ route('login.store') }}" class="flex flex-col gap-6">
