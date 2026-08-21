@@ -106,6 +106,27 @@ test('semantic monospace text uses the browser monospace font family', function 
     expect($svg)->toContain('font-family="monospace"');
 });
 
+test('preview text applies the configured character width', function () {
+    $element = [
+        'id' => '01K00000000000000000000000',
+        'type' => 'text',
+        'x' => 5,
+        'y' => 5,
+        'width' => 50,
+        'height' => 10,
+        'rotation' => 0,
+        'value' => 'Wide text',
+        'style' => ['font_family' => 'sans', 'font_size' => 4, 'font_width' => 1.25, 'font_weight' => 'normal', 'alignment' => 'left'],
+    ];
+
+    $svg = (new SvgRenderer)->render(
+        new ResolvedLabelDefinition([$element], []),
+        new LabelRenderContext(101.6, 50.8, 203),
+    );
+
+    expect($svg)->toContain('transform="translate(5 0) scale(1.25 1) translate(-5 0)"');
+});
+
 test('a rotated design canvas is transformed into media coordinates as a group', function () {
     $element = [
         'id' => '01K00000000000000000000000',

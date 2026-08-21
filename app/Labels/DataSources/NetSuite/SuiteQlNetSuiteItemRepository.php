@@ -14,7 +14,8 @@ final readonly class SuiteQlNetSuiteItemRepository implements NetSuiteItemReposi
         $query = <<<SQL
             SELECT itemid AS part_number,
                    description AS part_description,
-                   upccode AS upc
+                   upccode AS upc,
+                   BUILTIN.DF(countryofmanufacture) AS country_of_origin
             FROM item
             WHERE itemid = '{$escapedPartNumber}'
               AND isinactive = 'F'
@@ -34,6 +35,7 @@ final readonly class SuiteQlNetSuiteItemRepository implements NetSuiteItemReposi
             'part_number' => (string) ($items[0]['part_number'] ?? $partNumber),
             'part_description' => isset($items[0]['part_description']) ? (string) $items[0]['part_description'] : null,
             'upc' => isset($items[0]['upc']) && $items[0]['upc'] !== '' ? (string) $items[0]['upc'] : null,
+            'country_of_origin' => isset($items[0]['country_of_origin']) && $items[0]['country_of_origin'] !== '' ? (string) $items[0]['country_of_origin'] : null,
         ];
     }
 }

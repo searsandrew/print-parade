@@ -97,6 +97,16 @@ test('only portable semantic fonts are accepted', function () {
     ]);
 })->throws(InvalidArgumentException::class);
 
+test('text character width must stay within the portable renderer range', function (float $fontWidth) {
+    $element = textElement();
+    $element['style']['font_width'] = $fontWidth;
+
+    LabelDefinition::fromArray([
+        'elements' => [$element],
+        'fields' => [],
+    ]);
+})->with([0.49, 2.01])->throws(InvalidArgumentException::class, 'font_width must be between 0.5 and 2.0');
+
 test('only quarter turn rotations are accepted', function () {
     LabelDefinition::fromArray([
         'elements' => [textElement(['rotation' => 45])],

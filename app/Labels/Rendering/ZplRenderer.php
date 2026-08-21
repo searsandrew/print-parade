@@ -67,7 +67,7 @@ final readonly class ZplRenderer implements LabelRenderer
             LabelTextAlignment::Right => 'R',
         };
         $fontHeight = max(1, $context->millimetersToDots($style['font_size']));
-        $fontWidth = max(1, (int) round($fontHeight * 0.6));
+        $fontWidth = max(1, (int) round($fontHeight * (float) ($style['font_width'] ?? 1.0)));
         $fieldWidth = $context->millimetersToDots($element['width']);
         $fieldHeight = $context->millimetersToDots($element['height']);
         $maximumLines = max(1, (int) floor($fieldHeight / $fontHeight));
@@ -104,9 +104,6 @@ final readonly class ZplRenderer implements LabelRenderer
     }
 
     /**
-     * ZPL anchors rotated fonts at the leading corner for their orientation,
-     * rather than at the element's unrotated top-left corner.
-     *
      * @param  array<string, mixed>  $element
      * @return array{int, int}
      */
@@ -114,13 +111,12 @@ final readonly class ZplRenderer implements LabelRenderer
     {
         $x = $context->millimetersToDots($element['x']);
         $y = $context->millimetersToDots($element['y']);
-        $width = $context->millimetersToDots($element['width']);
 
         return match (LabelRotation::from($element['rotation'])) {
             LabelRotation::None => [$x + $offset, $y],
             LabelRotation::Clockwise90 => [$x, $y + $offset],
-            LabelRotation::Clockwise180 => [$x + $width - $offset, $y + $context->millimetersToDots($element['height'])],
-            LabelRotation::Clockwise270 => [$x, $y + $width - $offset],
+            LabelRotation::Clockwise180 => [$x + $offset, $y],
+            LabelRotation::Clockwise270 => [$x, $y + $offset],
         };
     }
 

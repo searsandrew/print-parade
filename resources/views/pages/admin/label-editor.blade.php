@@ -547,6 +547,12 @@ new #[Title('Label designer')] class extends Component {
                 $element['style']['font_size'] = (float) $element['style']['font_size'];
             }
 
+            if (isset($element['style']['font_width']) && is_numeric($element['style']['font_width'])) {
+                $element['style']['font_width'] = (float) $element['style']['font_width'];
+            } elseif (in_array($element['type'] ?? null, [LabelElementType::Text->value, LabelElementType::JobIdentifier->value], true)) {
+                $element['style']['font_width'] = 1.0;
+            }
+
             return $element;
         }, $this->elements);
     }
@@ -663,7 +669,7 @@ new #[Title('Label designer')] class extends Component {
             'rotation' => 0,
             'hide_when_empty' => true,
             'value' => 'Text',
-            'style' => ['font_family' => 'sans', 'font_size' => 4.0, 'font_weight' => 'normal', 'alignment' => 'left'],
+            'style' => ['font_family' => 'sans', 'font_size' => 4.0, 'font_width' => 1.0, 'font_weight' => 'normal', 'alignment' => 'left'],
         ];
     }
 
@@ -1020,7 +1026,7 @@ new #[Title('Label designer')] class extends Component {
                                 @endif
                             </span>
                         @else
-                            <span class="block size-full text-black" style="font-family: {{ ($element['style']['font_family'] ?? 'sans') === 'monospace' ? 'monospace' : 'sans-serif' }}; font-weight: {{ $element['style']['font_weight'] ?? 'normal' }}; font-size: clamp(8px, {{ ((float) ($element['style']['font_size'] ?? 3) / $this->canvasHeight) * 100 }}cqh, 36px); text-align: {{ $element['style']['alignment'] ?? 'left' }};">
+                            <span class="block size-full text-black" style="font-family: {{ ($element['style']['font_family'] ?? 'sans') === 'monospace' ? 'monospace' : 'sans-serif' }}; font-weight: {{ $element['style']['font_weight'] ?? 'normal' }}; font-size: clamp(8px, {{ ((float) ($element['style']['font_size'] ?? 3) / $this->canvasHeight) * 100 }}cqh, 36px); text-align: {{ $element['style']['alignment'] ?? 'left' }}; transform: scaleX({{ (float) ($element['style']['font_width'] ?? 1) }}); transform-origin: {{ $element['style']['alignment'] ?? 'left' }} top;">
                                 {{ $element['type'] === 'job_identifier' ? $this->template->code.' ('.$revisionCode.') | JOB ID' : $this->elementPreviewValue($element) }}
                             </span>
                         @endif
@@ -1064,6 +1070,7 @@ new #[Title('Label designer')] class extends Component {
                     <div class="grid grid-cols-2 gap-4">
                         <flux:select wire:model.live="elements.{{ $selectedIndex }}.style.font_family" :label="__('Font')"><flux:select.option value="sans">{{ __('Sans') }}</flux:select.option><flux:select.option value="monospace">{{ __('Monospace') }}</flux:select.option></flux:select>
                         <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.style.font_size" :label="__('Size (mm)')" type="number" min="0.1" step="0.1" />
+                        <flux:input wire:model.live.number.debounce.250ms="elements.{{ $selectedIndex }}.style.font_width" :label="__('Character width')" type="number" min="0.5" max="2" step="0.05" />
                         <flux:select wire:model.live="elements.{{ $selectedIndex }}.style.font_weight" :label="__('Weight')"><flux:select.option value="normal">{{ __('Normal') }}</flux:select.option><flux:select.option value="bold">{{ __('Bold') }}</flux:select.option></flux:select>
                         <flux:select wire:model.live="elements.{{ $selectedIndex }}.style.alignment" :label="__('Align')"><flux:select.option value="left">{{ __('Left') }}</flux:select.option><flux:select.option value="center">{{ __('Center') }}</flux:select.option><flux:select.option value="right">{{ __('Right') }}</flux:select.option></flux:select>
                     </div>

@@ -18,7 +18,7 @@ test('text is rendered as a complete zpl label at the selected resolution', func
             '^PW812',
             '^LL406',
             '^LH0,0',
-            '^FO40,40^A0N,32,19^FH\\^FDPart ABC-123^FS',
+            '^FO40,40^A0N,32,32^FH\\^FDPart ABC-123^FS',
             '^XZ',
         ]));
 });
@@ -41,8 +41,8 @@ test('semantic fonts rotation alignment and bold weight map to zpl', function ()
     );
 
     expect($zpl)
-        ->toContain('^FO40,276')
-        ->toContain('^AAR,32,19')
+        ->toContain('^FO40,191')
+        ->toContain('^AAR,32,32')
         ->toContain('^FDCentered text^FS');
 });
 
@@ -68,9 +68,28 @@ test('each rotated text orientation uses its zpl leading corner', function (int 
     expect($zpl)->toContain($origin);
 })->with([
     'clockwise 90' => [90, '^FO40,40'],
-    'clockwise 180' => [180, '^FO759,104'],
-    'clockwise 270' => [270, '^FO40,759'],
+    'clockwise 180' => [180, '^FO40,40'],
+    'clockwise 270' => [270, '^FO40,40'],
 ]);
+
+test('character width can be adjusted independently from font height', function () {
+    $element = zplTextElement([
+        'style' => [
+            'font_family' => 'sans',
+            'font_size' => 4,
+            'font_width' => 1.25,
+            'font_weight' => 'normal',
+            'alignment' => 'left',
+        ],
+    ]);
+
+    $zpl = (new ZplRenderer)->render(
+        new ResolvedLabelDefinition([$element], []),
+        new LabelRenderContext(101.6, 50.8, 203),
+    );
+
+    expect($zpl)->toContain('^A0N,32,40');
+});
 
 test('text field data is escaped and bold text is overprinted by one dot', function () {
     $element = zplTextElement([
@@ -89,8 +108,8 @@ test('text field data is escaped and bold text is overprinted by one dot', funct
     );
 
     expect($zpl)
-        ->toContain('^FO685,40^A0N,32,19^FH\\^FDA\\5EB\\7EC\\5CD^FS')
-        ->toContain('^FO686,40^A0N,32,19');
+        ->toContain('^FO634,40^A0N,32,32^FH\\^FDA\\5EB\\7EC\\5CD^FS')
+        ->toContain('^FO635,40^A0N,32,32');
 });
 
 test('lines and rectangles render as zpl graphic boxes', function () {

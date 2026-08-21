@@ -166,6 +166,14 @@ final readonly class LabelDefinition implements Arrayable, JsonSerializable
 
         self::requirePositiveNumber($style, 'font_size', $index);
 
+        if (array_key_exists('font_width', $style)) {
+            self::requirePositiveNumber($style, 'font_width', $index);
+
+            if ((float) $style['font_width'] < 0.5 || (float) $style['font_width'] > 2.0) {
+                throw new InvalidArgumentException("Element {$index} font_width must be between 0.5 and 2.0.");
+            }
+        }
+
         if (! isset($style['font_weight']) || ! is_string($style['font_weight']) || LabelFontWeight::tryFrom($style['font_weight']) === null) {
             throw new InvalidArgumentException("Element {$index} must use a supported font weight.");
         }

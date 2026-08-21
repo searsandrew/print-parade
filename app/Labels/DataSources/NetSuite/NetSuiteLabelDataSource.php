@@ -33,6 +33,13 @@ final readonly class NetSuiteLabelDataSource implements LabelDataSource
                 'required_inputs' => ['part_number'],
                 'sample' => '036000291452',
             ],
+            'country_of_origin' => [
+                'label' => 'Country of origin',
+                'type' => 'string',
+                'required' => false,
+                'required_inputs' => ['part_number'],
+                'sample' => 'United States',
+            ],
         ];
     }
 

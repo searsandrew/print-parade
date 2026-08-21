@@ -15,6 +15,7 @@ test('the repository looks up an active item by exact part number', function () 
                 'part_number' => "MFG'023",
                 'part_description' => 'Replacement filter assembly',
                 'upc' => '036000291452',
+                'country_of_origin' => 'United States',
             ]],
         ]),
     ]);
@@ -24,6 +25,7 @@ test('the repository looks up an active item by exact part number', function () 
         'part_number' => "MFG'023",
         'part_description' => 'Replacement filter assembly',
         'upc' => '036000291452',
+        'country_of_origin' => 'United States',
     ]);
 
     Http::assertSent(function (Request $request): bool {
@@ -32,6 +34,7 @@ test('the repository looks up an active item by exact part number', function () 
         return $request->method() === 'POST'
             && str_contains($request->url(), '/services/rest/query/v1/suiteql?limit=1')
             && str_contains($query, 'description AS part_description')
+            && str_contains($query, 'BUILTIN.DF(countryofmanufacture) AS country_of_origin')
             && ! str_contains($query, 'salesdescription')
             && str_contains($query, "itemid = 'MFG''023'")
             && str_contains($query, "isinactive = 'F'");

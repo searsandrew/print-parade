@@ -25,7 +25,7 @@ test('netsuite exposes a code-owned item field catalog', function () {
     $source = new NetSuiteLabelDataSource(new FakeNetSuiteItemRepository);
 
     expect($source->namespace())->toBe('netsuite')
-        ->and($source->fields())->toHaveKeys(['part_description', 'upc'])
+        ->and($source->fields())->toHaveKeys(['part_description', 'upc', 'country_of_origin'])
         ->and($source->fields()['part_description'])->toMatchArray([
             'required' => true,
             'required_inputs' => ['part_number'],
@@ -33,6 +33,11 @@ test('netsuite exposes a code-owned item field catalog', function () {
         ->and($source->fields()['upc'])->toMatchArray([
             'format' => 'upc_a',
             'required' => false,
+        ])
+        ->and($source->fields()['country_of_origin'])->toMatchArray([
+            'required' => false,
+            'required_inputs' => ['part_number'],
+            'sample' => 'United States',
         ]);
 });
 
@@ -41,10 +46,24 @@ test('netsuite resolves only requested values from the part number lookup', func
         'part_number' => 'CMM023',
         'part_description' => 'Replacement filter assembly',
         'upc' => '036000291452',
+        'country_of_origin' => 'United States',
     ]));
 
     expect($source->resolve(['part_description'], ['part_number' => 'CMM023']))->toBe([
         'part_description' => 'Replacement filter assembly',
+    ]);
+});
+
+test('netsuite returns a full country of origin only when requested', function () {
+    $source = new NetSuiteLabelDataSource(new FakeNetSuiteItemRepository([
+        'part_number' => 'CMM023',
+        'part_description' => 'Replacement filter assembly',
+        'upc' => '036000291452',
+        'country_of_origin' => 'United States',
+    ]));
+
+    expect($source->resolve(['country_of_origin'], ['part_number' => 'CMM023']))->toBe([
+        'country_of_origin' => 'United States',
     ]);
 });
 

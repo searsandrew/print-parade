@@ -91,15 +91,22 @@ final readonly class SvgRenderer implements LabelRenderer
             LabelTextAlignment::Center => (float) $element['width'] / 2,
             LabelTextAlignment::Right => (float) $element['width'],
         };
+        $fontWidth = (float) ($style['font_width'] ?? 1.0);
+        $widthTransform = sprintf(
+            'translate(%1$s 0) scale(%2$s 1) translate(-%1$s 0)',
+            self::number($x),
+            self::number($fontWidth),
+        );
         /** @noinspection HtmlWrongAttributeValue */
         $markup = sprintf(
-            '<text x="%s" y="%s" font-family="%s" font-size="%s" font-weight="%s" text-anchor="%s" dominant-baseline="hanging">%s</text>',
+            '<text x="%s" y="%s" font-family="%s" font-size="%s" font-weight="%s" text-anchor="%s" dominant-baseline="hanging" transform="%s">%s</text>',
             self::number($x),
             self::number((float) $element['y']),
             self::svgFontFamily((string) $style['font_family']),
             self::number((float) $style['font_size']),
             self::xml((string) $style['font_weight']),
             $textAnchor,
+            $widthTransform,
             self::xml((string) $element['value']),
         );
 
