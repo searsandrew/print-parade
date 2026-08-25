@@ -8,15 +8,19 @@ use InvalidArgumentException;
 use JsonException;
 
 /**
- * @implements CastsAttributes<LabelDefinition, LabelDefinition|array<string, mixed>>
+ * @implements CastsAttributes<LabelDefinition|null, LabelDefinition|array<string, mixed>|null>
  */
 final class LabelDefinitionCast implements CastsAttributes
 {
     /**
      * @param  array<string, mixed>  $attributes
      */
-    public function get(Model $model, string $key, mixed $value, array $attributes): LabelDefinition
+    public function get(Model $model, string $key, mixed $value, array $attributes): ?LabelDefinition
     {
+        if ($value === null) {
+            return null;
+        }
+
         if (! is_string($value)) {
             throw new InvalidArgumentException('A stored label definition must be JSON.');
         }
@@ -28,13 +32,17 @@ final class LabelDefinitionCast implements CastsAttributes
     }
 
     /**
-     * @param  LabelDefinition|array<string, mixed>  $value
+     * @param  LabelDefinition|array<string, mixed>|null  $value
      * @param  array<string, mixed>  $attributes
      *
      * @throws JsonException
      */
-    public function set(Model $model, string $key, mixed $value, array $attributes): string
+    public function set(Model $model, string $key, mixed $value, array $attributes): ?string
     {
+        if ($value === null) {
+            return null;
+        }
+
         $definition = $value instanceof LabelDefinition
             ? $value
             : LabelDefinition::fromArray($value);

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Labels\Definitions\LabelDefinition;
+use App\Labels\Definitions\LabelDefinitionCast;
 use App\Labels\Enums\PrintJobStatus;
 use Database\Factories\PrintJobFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -20,6 +22,9 @@ use LogicException;
  * @property int $printer_id
  * @property int|null $submitted_by
  * @property array<string, mixed> $input_values
+ * @property LabelDefinition|null $definition_snapshot
+ * @property string|null $revision_code_snapshot
+ * @property bool $is_test
  * @property array<string, mixed>|null $resolved_values
  * @property int $quantity
  * @property PrintJobStatus $status
@@ -40,7 +45,7 @@ use LogicException;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['label_template_version_id', 'printer_id', 'submitted_by', 'input_values', 'quantity'])]
+#[Fillable(['label_template_version_id', 'printer_id', 'submitted_by', 'input_values', 'definition_snapshot', 'revision_code_snapshot', 'is_test', 'quantity'])]
 #[Hidden(['claim_token_hash'])]
 class PrintJob extends Model
 {
@@ -51,6 +56,8 @@ class PrintJob extends Model
     {
         return [
             'input_values' => 'array',
+            'definition_snapshot' => LabelDefinitionCast::class,
+            'is_test' => 'boolean',
             'resolved_values' => 'array',
             'quantity' => 'integer',
             'status' => PrintJobStatus::class,

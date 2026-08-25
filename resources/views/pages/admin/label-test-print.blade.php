@@ -2,7 +2,9 @@
 
 use App\Labels\Printing\LabelTestPreviewer;
 use App\Labels\Printing\PrintJobSubmitter;
+use App\Labels\Definitions\LabelDefinition;
 use App\Models\LabelTemplate;
+use App\Models\LabelTemplateDraft;
 use App\Models\Printer;
 use App\Models\PrintJob;
 use Flux\Flux;
@@ -15,6 +17,8 @@ use Livewire\Component;
 
 new #[Title('Test print label')] class extends Component {
     public int $templateId;
+
+    public ?int $draftId = null;
 
     public int|string|null $printerId = null;
 
@@ -36,11 +40,20 @@ new #[Title('Test print label')] class extends Component {
     public function mount(LabelTemplate $labelTemplate): void
     {
         $labelTemplate->load(['labelStock', 'publishedVersion']);
-        abort_if($labelTemplate->publishedVersion === null, 404);
 
         $this->templateId = $labelTemplate->id;
 
-        foreach ($labelTemplate->publishedVersion->definition->toArray()['fields'] as $name => $field) {
+        if (request()->boolean('draft')) {
+            $this->draftId = LabelTemplateDraft::query()
+                ->whereBelongsTo($labelTemplate)
+                ->whereBelongsTo(Auth::user())
+                ->value('id');
+            abort_if($this->draftId === null, 404);
+        } else {
+            abort_if($labelTemplate->publishedVersion === null, 404);
+        }
+
+        foreach ($this->definition()->toArray()['fields'] as $name => $field) {
             $this->values[$name] = $field['default'] ?? match ($field['type']) {
                 'boolean' => false,
                 default => '',
@@ -73,7 +86,7 @@ new #[Title('Test print label')] class extends Component {
     #[Computed]
     public function fields(): array
     {
-        return $this->template->publishedVersion->definition->toArray()['fields'];
+        return $this->definition()->toArray()['fields'];
     }
 
     /** @return array<string, scalar|null> */
@@ -100,7 +113,9 @@ new #[Title('Test print label')] class extends Component {
         $this->queuedJobId = null;
 
         try {
-            $preview = $previewer->preview($this->template, $this->values);
+            $preview = $this->draftId === null
+                ? $previewer->preview($this->template, $this->values)
+                : $previewer->previewDefinition($this->template, $this->definition(), $this->revisionCode(), $this->values);
             $this->previewSvg = $preview->svg;
             $this->resolvedValues = $preview->resolvedValues;
         } catch (\InvalidArgumentException|\LogicException $exception) {
@@ -125,13 +140,13 @@ new #[Title('Test print label')] class extends Component {
 
         try {
             /** @var PrintJob $job */
-            $job = $submitter->submit(
+            $printer = Printer::query()->findOrFail($validated['printerId']);
+            $job = $submitter->submitConfigurationTest(
                 $this->template,
-                Printer::query()->findOrFail($validated['printerId']),
+                $this->definition(),
+                $this->revisionCode(),
+                $printer,
                 Auth::user(),
-                null,
-                null,
-                1,
                 $this->values,
             );
             $this->queuedJobId = $job->id;
@@ -146,6 +161,29 @@ new #[Title('Test print label')] class extends Component {
         $this->previewSvg = '';
         $this->resolvedValues = [];
     }
+
+    private function draft(): LabelTemplateDraft
+    {
+        return LabelTemplateDraft::query()
+            ->whereKey($this->draftId)
+            ->where('label_template_id', $this->templateId)
+            ->whereBelongsTo(Auth::user())
+            ->firstOrFail();
+    }
+
+    private function definition(): LabelDefinition
+    {
+        return $this->draftId === null
+            ? $this->template->publishedVersion->definition
+            : LabelDefinition::fromArray($this->draft()->definition);
+    }
+
+    private function revisionCode(): string
+    {
+        return $this->draftId === null
+            ? $this->template->publishedVersion->revision_code
+            : $this->draft()->revision_code;
+    }
 }; ?>
 
 <div class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6">
@@ -158,11 +196,14 @@ new #[Title('Test print label')] class extends Component {
             </flux:breadcrumbs>
             <flux:heading size="xl" class="mt-4">{{ __('Test print') }} · {{ $this->template->code }}</flux:heading>
             <flux:text class="mt-2">
-                {{ $this->template->name }} · {{ __('Revision :revision', ['revision' => $this->template->publishedVersion->revision_code]) }}
+                {{ $this->template->name }} · {{ __('Revision :revision', ['revision' => $this->revisionCode()]) }}
+                @if ($draftId !== null)
+                    · {{ __('saved draft configuration') }}
+                @endif
             </flux:text>
         </div>
 
-        <flux:badge color="amber" size="lg">{{ __('Administrative test · quantity 1') }}</flux:badge>
+        <flux:badge color="amber" size="lg">{{ $draftId !== null ? __('Draft configuration test · quantity 1') : __('Administrative test · quantity 1') }}</flux:badge>
     </div>
 
     @error('testPrint')

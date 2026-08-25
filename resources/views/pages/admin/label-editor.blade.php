@@ -120,6 +120,18 @@ new #[Title('Label designer')] class extends Component {
         $this->persistDraft();
     }
 
+    public function testPrintDraft(): void
+    {
+        if (! $this->persistDraft()) {
+            return;
+        }
+
+        $this->redirectRoute('admin.label-template-test-print', [
+            'labelTemplate' => $this->template,
+            'draft' => 1,
+        ], navigate: true);
+    }
+
     #[Computed]
     public function template(): LabelTemplate
     {
@@ -779,6 +791,7 @@ new #[Title('Label designer')] class extends Component {
             </flux:select>
             <flux:input wire:model="revisionCode" :label="__('Revision (MMYY)')" class="w-36" maxlength="4" />
             <flux:button icon="cloud-arrow-up" wire:click="saveDraft">{{ __('Save draft') }}</flux:button>
+            <flux:button icon="printer" wire:click="testPrintDraft">{{ __('Save & test print') }}</flux:button>
             <flux:button icon="eye" wire:click="preview">{{ __('Rendered preview') }}</flux:button>
             <flux:button variant="primary" icon="check" wire:click="saveRevision" wire:confirm="{{ __('Create this immutable revision? Future changes will require another revision.') }}">{{ __('Create revision') }}</flux:button>
             <flux:button variant="primary" icon="paper-airplane" wire:click="saveRevision(true)" wire:confirm="{{ __('Create and publish this immutable revision? It will immediately become available for new print jobs.') }}">{{ __('Create & publish') }}</flux:button>

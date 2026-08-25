@@ -46,22 +46,25 @@ final readonly class PrintJobExecutor
 
         try {
             $version = $job->labelTemplateVersion;
+            $definition = $job->definition_snapshot ?? $version->definition;
+            $revisionCode = $job->revision_code_snapshot ?? $version->revision_code;
 
             if ($job->printer->language !== PrinterLanguage::Zpl) {
                 throw new LogicException("Printing in {$job->printer->language->value} is not implemented.");
             }
 
             $jobIdentifier = sprintf(
-                '%s (%s) | %s',
+                '%s (%s%s) | %s',
                 $version->labelTemplate->code,
-                $version->revision_code,
+                $revisionCode,
+                $job->is_test ? ' TEST' : '',
                 $job->shortIdentifier(),
             );
-            $inputValues = $this->resolver->resolveInputValues($version->definition, $job->input_values);
-            $dataSourceValues = $this->dataSourceResolver->resolve($version->definition, $inputValues);
+            $inputValues = $this->resolver->resolveInputValues($definition, $job->input_values);
+            $dataSourceValues = $this->dataSourceResolver->resolve($definition, $inputValues);
             $systemValues = ['job_identifier' => $jobIdentifier];
             $resolvedDefinition = $this->resolver->resolve(
-                $version->definition,
+                $definition,
                 $inputValues,
                 $systemValues,
                 $dataSourceValues,

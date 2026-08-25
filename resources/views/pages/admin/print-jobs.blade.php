@@ -247,11 +247,14 @@ new #[Title('Print jobs')] class extends Component {
                     @forelse ($this->jobs as $job)
                         <flux:table.row :key="$job->id">
                             <flux:table.cell>
-                                <button type="button" class="font-mono font-medium text-blue-600 hover:underline dark:text-blue-400" wire:click="viewJob('{{ $job->id }}')">{{ $job->shortIdentifier() }}</button>
+                                <div class="flex items-center gap-2">
+                                    <button type="button" class="font-mono font-medium text-blue-600 hover:underline dark:text-blue-400" wire:click="viewJob('{{ $job->id }}')">{{ $job->shortIdentifier() }}</button>
+                                    @if ($job->is_test)<flux:badge color="amber" size="sm">{{ __('Test') }}</flux:badge>@endif
+                                </div>
                             </flux:table.cell>
                             <flux:table.cell>
                                 <div class="font-medium">{{ $job->labelTemplateVersion->labelTemplate->code }}</div>
-                                <div class="text-sm text-zinc-500">{{ $job->labelTemplateVersion->revision_code }} · v{{ $job->labelTemplateVersion->version }}</div>
+                                <div class="text-sm text-zinc-500">{{ $job->revision_code_snapshot ?? $job->labelTemplateVersion->revision_code }}{{ $job->is_test ? ' · draft snapshot' : ' · v'.$job->labelTemplateVersion->version }}</div>
                             </flux:table.cell>
                             <flux:table.cell>
                                 <div>{{ $job->printer->name }}</div>
@@ -309,8 +312,14 @@ new #[Title('Print jobs')] class extends Component {
                     <flux:callout variant="danger" icon="x-circle" heading="{{ __('Job failed') }}">{{ $job->failure_message }}</flux:callout>
                 @endif
 
+                @if ($job->is_test)
+                    <flux:callout variant="warning" icon="beaker" heading="{{ __('Configuration test print') }}">
+                        {{ __('This job used an immutable saved-draft snapshot and was not a published production revision.') }}
+                    </flux:callout>
+                @endif
+
                 <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                    <div><flux:text class="text-sm">{{ __('Template') }}</flux:text><div class="mt-1 font-medium">{{ $job->labelTemplateVersion->labelTemplate->code }} ({{ $job->labelTemplateVersion->revision_code }}) · v{{ $job->labelTemplateVersion->version }}</div></div>
+                    <div><flux:text class="text-sm">{{ __('Template') }}</flux:text><div class="mt-1 font-medium">{{ $job->labelTemplateVersion->labelTemplate->code }} ({{ $job->revision_code_snapshot ?? $job->labelTemplateVersion->revision_code }}){{ $job->is_test ? ' · test snapshot' : ' · v'.$job->labelTemplateVersion->version }}</div></div>
                     <div><flux:text class="text-sm">{{ __('Stock') }}</flux:text><div class="mt-1 font-medium">{{ $job->labelTemplateVersion->labelTemplate->labelStock->name }}</div></div>
                     <div><flux:text class="text-sm">{{ __('Quantity') }}</flux:text><div class="mt-1 font-medium">{{ number_format($job->quantity) }}</div></div>
                     <div><flux:text class="text-sm">{{ __('Printer') }}</flux:text><div class="mt-1 font-medium">{{ $job->printer->name }}</div><div class="text-sm text-zinc-500">{{ $job->printer->location }}</div></div>

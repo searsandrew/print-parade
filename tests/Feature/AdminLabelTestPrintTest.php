@@ -5,6 +5,7 @@ use App\Labels\Definitions\LabelDefinition;
 use App\Labels\Enums\PrintJobStatus;
 use App\Models\LabelStock;
 use App\Models\LabelTemplate;
+use App\Models\LabelTemplateDraft;
 use App\Models\LabelTemplateVersion;
 use App\Models\PrintBridge;
 use App\Models\Printer;
@@ -66,11 +67,49 @@ test('an administrator can resolve live values and queue a quantity one test pri
     $job = PrintJob::query()->sole();
 
     expect($job->quantity)->toBe(1)
+        ->and($job->is_test)->toBeTrue()
+        ->and($job->revision_code_snapshot)->toBe('0826')
         ->and($job->status)->toBe(PrintJobStatus::Queued)
         ->and($job->submitted_by)->toBe($admin->id)
         ->and($job->executed_by)->toBe($admin->id)
         ->and($job->input_values)->toBe(['part_number' => 'CMM023'])
         ->and($job->resolved_values['netsuite']['part_description'])->toBe('Live description for CMM023');
+});
+
+test('an administrator can queue the saved draft as an immutable configuration test', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+    $this->app->bind(NetSuiteItemRepository::class, TestPrintNetSuiteItems::class);
+    $template = testPrintTemplate();
+    $bridge = PrintBridge::factory()->create(['last_seen_at' => null]);
+    $printer = Printer::factory()->for($bridge)->for($template->labelStock)->create();
+    $definition = $template->publishedVersion->definition->toArray();
+    $definition['elements'][0]['value'] = 'DRAFT {{ part_number }} · {{ netsuite.part_description }}';
+    LabelTemplateDraft::factory()->for($template)->for($admin)->create([
+        'revision_code' => '0926',
+        'definition' => $definition,
+    ]);
+
+    Livewire::withQueryParams(['draft' => 1])
+        ->test('pages::admin.label-test-print', ['labelTemplate' => $template])
+        ->assertSet('draftId', fn (?int $draftId): bool => $draftId !== null)
+        ->assertSee('saved draft configuration')
+        ->set('values.part_number', 'CMM023')
+        ->call('resolvePreview')
+        ->assertHasNoErrors()
+        ->assertSet('previewSvg', fn (string $svg): bool => str_contains($svg, 'DRAFT CMM023'))
+        ->set('printerId', $printer->id)
+        ->call('queueTestPrint')
+        ->assertHasNoErrors();
+
+    $job = PrintJob::query()->sole();
+
+    expect($job->is_test)->toBeTrue()
+        ->and($job->quantity)->toBe(1)
+        ->and($job->revision_code_snapshot)->toBe('0926')
+        ->and($job->definition_snapshot->toArray()['elements'][0]['value'])->toStartWith('DRAFT')
+        ->and($job->output_payload)->toContain('DRAFT CMM023')
+        ->and($job->output_payload)->toContain('0926 TEST');
 });
 
 function testPrintTemplate(): LabelTemplate

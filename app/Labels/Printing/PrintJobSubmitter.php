@@ -2,6 +2,7 @@
 
 namespace App\Labels\Printing;
 
+use App\Labels\Definitions\LabelDefinition;
 use App\Models\LabelTemplate;
 use App\Models\Printer;
 use App\Models\PrintJob;
@@ -59,6 +60,45 @@ final readonly class PrintJobSubmitter
         ]);
 
         $this->executor->prepareAuthorized($job, $operator);
+
+        return $job->refresh();
+    }
+
+    /** @param array<string, mixed> $values */
+    public function submitConfigurationTest(LabelTemplate $template, LabelDefinition $definition, string $revisionCode, Printer $printer, User $administrator, array $values): PrintJob
+    {
+        if (! $administrator->is_admin) {
+            throw new AuthorizationException('Only administrators may submit configuration test prints.');
+        }
+
+        $template->loadMissing(['labelStock', 'publishedVersion']);
+
+        if (! $template->is_active || ! $template->labelStock->is_active) {
+            throw new LogicException('The selected label template is inactive.');
+        }
+
+        if ($template->publishedVersion === null) {
+            throw new LogicException('An initial published revision is required before configuration test printing.');
+        }
+
+        $printer->loadMissing('labelStock');
+
+        if (! $printer->is_active || $printer->label_stock_id !== $template->label_stock_id) {
+            throw new LogicException('The selected printer is not active with this label stock loaded.');
+        }
+
+        $job = PrintJob::query()->create([
+            'label_template_version_id' => $template->publishedVersion->id,
+            'printer_id' => $printer->id,
+            'submitted_by' => $administrator->id,
+            'input_values' => $values,
+            'definition_snapshot' => $definition,
+            'revision_code_snapshot' => $revisionCode,
+            'is_test' => true,
+            'quantity' => 1,
+        ]);
+
+        $this->executor->prepareAuthorized($job, $administrator);
 
         return $job->refresh();
     }

@@ -337,6 +337,23 @@ test('an administrator can save and recover a private working draft', function (
         ->assertSet('elements.1.value', 'Replacement for {{ part_number }}');
 });
 
+test('save and test print persists the working draft before redirecting', function () {
+    $admin = User::factory()->admin()->create();
+    $this->actingAs($admin);
+    $template = designerTemplate();
+
+    Livewire::test('pages::admin.label-editor', ['labelTemplate' => $template])
+        ->set('revisionCode', '0926')
+        ->call('testPrintDraft')
+        ->assertHasNoErrors()
+        ->assertRedirect(route('admin.label-template-test-print', [
+            'labelTemplate' => $template,
+            'draft' => 1,
+        ]));
+
+    expect(LabelTemplateDraft::query()->sole()->revision_code)->toBe('0926');
+});
+
 test('working drafts are private to the administrator who created them', function () {
     $template = designerTemplate();
     $owner = User::factory()->admin()->create();
