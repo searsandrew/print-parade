@@ -11,7 +11,10 @@ use SocialiteProviders\Microsoft\Provider;
 test('the login screen offers microsoft authentication', function () {
     $this->get(route('login'))
         ->assertOk()
-        ->assertSee('Continue with Microsoft');
+        ->assertSee('Continue with Microsoft')
+        ->assertDontSee('or use a local account')
+        ->assertDontSee('Sign in with a passkey')
+        ->assertDontSee('Forgot your password?');
 });
 
 test('users can begin microsoft authentication', function () {

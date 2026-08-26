@@ -6,8 +6,8 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Password;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -28,10 +28,6 @@ new #[Title('Users')] class extends Component {
     public string $name = '';
 
     public string $email = '';
-
-    public string $password = '';
-
-    public string $password_confirmation = '';
 
     public bool $requiresPrintOperatorPin = false;
 
@@ -92,7 +88,6 @@ new #[Title('Users')] class extends Component {
         $this->email = $user->email;
         $this->requiresPrintOperatorPin = $user->requires_print_operator_pin;
         $this->isAdmin = $user->is_admin;
-        $this->reset('password', 'password_confirmation');
         $this->resetValidation();
 
         Flux::modal('user-form')->show();
@@ -100,14 +95,9 @@ new #[Title('Users')] class extends Component {
 
     public function saveUser(): void
     {
-        $passwordRules = $this->userId === null
-            ? ['required', 'string', Password::default(), 'confirmed']
-            : ['nullable', 'string', Password::default(), 'confirmed'];
-
         $validated = $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)->ignore($this->userId)],
-            'password' => $passwordRules,
             'requiresPrintOperatorPin' => ['required', 'boolean'],
             'isAdmin' => ['required', 'boolean'],
         ]);
@@ -145,8 +135,8 @@ new #[Title('Users')] class extends Component {
                 $attributes['email_verified_at'] = now();
             }
 
-            if (filled($validated['password'])) {
-                $attributes['password'] = $validated['password'];
+            if (! $user->exists) {
+                $attributes['password'] = Str::random(64);
             }
 
             $user->forceFill($attributes)->save();
@@ -168,7 +158,7 @@ new #[Title('Users')] class extends Component {
 
     private function resetUserForm(): void
     {
-        $this->reset('userId', 'name', 'email', 'password', 'password_confirmation');
+        $this->reset('userId', 'name', 'email');
         $this->requiresPrintOperatorPin = false;
         $this->isAdmin = false;
         $this->resetValidation();
@@ -232,7 +222,7 @@ new #[Title('Users')] class extends Component {
                             <flux:table.cell>
                                 <div class="flex flex-wrap gap-2">
                                     @if ($user->is_admin)<flux:badge color="purple" size="sm">{{ __('Administrator') }}</flux:badge>@endif
-                                    @if ($user->two_factor_confirmed_at)<flux:badge color="green" size="sm">{{ __('2FA') }}</flux:badge>@endif
+                                    <flux:badge :color="$user->microsoft_object_id ? 'green' : 'amber'" size="sm">{{ $user->microsoft_object_id ? __('Microsoft linked') : __('Awaiting Microsoft sign-in') }}</flux:badge>
                                     @if ($user->email_verified_at)<flux:badge color="zinc" size="sm">{{ __('Verified') }}</flux:badge>@endif
                                 </div>
                             </flux:table.cell>
@@ -255,13 +245,11 @@ new #[Title('Users')] class extends Component {
         <form wire:submit="saveUser" class="space-y-6">
             <div>
                 <flux:heading size="lg">{{ $userId ? __('Edit user') : __('Add user') }}</flux:heading>
-                <flux:text class="mt-2">{{ $userId ? __('Leave the password blank to keep the current password.') : __('The account is marked verified because it is being created by an administrator.') }}</flux:text>
+                <flux:text class="mt-2">{{ __('Access is granted through the Microsoft account matching this email address. No local password is created.') }}</flux:text>
             </div>
             <div class="grid gap-5 sm:grid-cols-2">
                 <flux:input wire:model="name" :label="__('Name')" autocomplete="name" required />
                 <flux:input wire:model="email" :label="__('Email')" type="email" autocomplete="email" required />
-                <flux:input wire:model="password" :label="$userId ? __('New password') : __('Password')" type="password" autocomplete="new-password" viewable :required="$userId === null" />
-                <flux:input wire:model="password_confirmation" :label="__('Confirm password')" type="password" autocomplete="new-password" viewable :required="$userId === null" />
             </div>
             <flux:switch wire:model="requiresPrintOperatorPin" :label="__('Require operator selection and PIN')" :description="__('Enable for shared scanners and production-room workstation accounts.')" />
             <flux:switch wire:model="isAdmin" :label="__('Administrator')" :description="__('Administrators can manage equipment, stocks, templates, jobs, and users.')" />

@@ -1,58 +1,28 @@
 <?php
 
 use App\Models\User;
-use Laravel\Fortify\Features;
 
 test('login screen can be rendered', function () {
     $response = $this->get(route('login'));
 
-    $response->assertOk();
-});
-
-test('users can authenticate using the login screen', function () {
-    $user = User::factory()->create();
-
-    $response = $this->post(route('login.store'), [
-        'email' => $user->email,
-        'password' => 'password',
-    ]);
-
     $response
-        ->assertSessionHasNoErrors()
-        ->assertRedirect(route('home', absolute: false));
-
-    $this->assertAuthenticated();
+        ->assertOk()
+        ->assertSee('Continue with Microsoft')
+        ->assertDontSee('Email address')
+        ->assertDontSee('Password')
+        ->assertDontSee('passkey');
 });
 
-test('users can not authenticate with invalid password', function () {
+test('local password authentication is unavailable', function () {
     $user = User::factory()->create();
 
-    $response = $this->post(route('login.store'), [
-        'email' => $user->email,
-        'password' => 'wrong-password',
-    ]);
-
-    $response->assertSessionHasErrorsIn('email');
-
-    $this->assertGuest();
-});
-
-test('users with two factor enabled are redirected to two factor challenge', function () {
-    $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
-
-    Features::twoFactorAuthentication([
-        'confirm' => true,
-        'confirmPassword' => true,
-    ]);
-
-    $user = User::factory()->withTwoFactor()->create();
-
-    $response = $this->post(route('login.store'), [
+    $response = $this->post('/login', [
         'email' => $user->email,
         'password' => 'password',
     ]);
 
-    $response->assertRedirect(route('two-factor.login'));
+    $response->assertStatus(405);
+
     $this->assertGuest();
 });
 

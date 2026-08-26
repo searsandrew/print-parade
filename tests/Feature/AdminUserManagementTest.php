@@ -2,7 +2,6 @@
 
 use App\Models\PrintJob;
 use App\Models\User;
-use Illuminate\Support\Facades\Hash;
 use Laravel\Fortify\Features;
 use Livewire\Livewire;
 
@@ -35,8 +34,6 @@ test('administrators can create a verified shared station account', function () 
     Livewire::test('pages::admin.users')
         ->set('name', 'Warehouse Scanner')
         ->set('email', 'warehouse@example.test')
-        ->set('password', 'Correct-Horse-Battery-Staple-9')
-        ->set('password_confirmation', 'Correct-Horse-Battery-Staple-9')
         ->set('requiresPrintOperatorPin', true)
         ->call('saveUser')
         ->assertHasNoErrors();
@@ -47,7 +44,7 @@ test('administrators can create a verified shared station account', function () 
         ->and($user->requires_print_operator_pin)->toBeTrue()
         ->and($user->is_admin)->toBeFalse()
         ->and($user->email_verified_at)->not->toBeNull()
-        ->and(Hash::check('Correct-Horse-Battery-Staple-9', $user->password))->toBeTrue();
+        ->and($user->microsoft_object_id)->toBeNull();
 });
 
 test('administrators can update account mode and administrator access', function () {
@@ -118,15 +115,13 @@ test('user search and filters include print attribution counts', function () {
         ->assertDontSee('Taylor Person');
 });
 
-test('user account validation requires unique email and a confirmed strong password', function () {
+test('user account validation requires a unique email', function () {
     $this->actingAs(User::factory()->admin()->create());
     $existing = User::factory()->create();
 
     Livewire::test('pages::admin.users')
         ->set('name', 'Invalid User')
         ->set('email', $existing->email)
-        ->set('password', 'short')
-        ->set('password_confirmation', 'different')
         ->call('saveUser')
-        ->assertHasErrors(['email', 'password']);
+        ->assertHasErrors(['email']);
 });

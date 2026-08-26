@@ -5,7 +5,9 @@ use App\Http\Controllers\Api\PrintJobSubmissionController;
 use App\Http\Controllers\Auth\MicrosoftCallbackController;
 use App\Http\Controllers\Auth\MicrosoftRedirectController;
 use App\Http\Controllers\LabelPreviewController;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function (Request $request) {
@@ -16,9 +18,17 @@ Route::get('/', function (Request $request) {
     return redirect()->route($request->user()->is_admin ? 'admin.dashboard' : 'print.station');
 })->name('home');
 Route::middleware(['guest', 'throttle:10,1'])->group(function (): void {
+    Route::view('login', 'pages.auth.login')->name('login');
     Route::get('auth/microsoft', MicrosoftRedirectController::class)->name('auth.microsoft.redirect');
     Route::get('auth/microsoft/callback', MicrosoftCallbackController::class)->name('auth.microsoft.callback');
 });
+Route::post('logout', function (Request $request): RedirectResponse {
+    Auth::guard('web')->logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
+
+    return redirect()->route('home');
+})->middleware('auth')->name('logout');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('print', 'print')->name('print.station');
     Route::get('print/catalog', PrintCatalogController::class)->name('print.catalog')->middleware('throttle:60,1');

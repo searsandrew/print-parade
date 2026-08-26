@@ -3,20 +3,13 @@
 use App\Models\User;
 use Livewire\Livewire;
 
-test('printing settings page is displayed after password confirmation', function () {
+test('printing settings page is available to an authenticated microsoft user', function () {
     $user = User::factory()->create();
 
     $this->actingAs($user)
-        ->withSession(['auth.password_confirmed_at' => time()])
         ->get(route('printing.edit'))
         ->assertOk()
         ->assertSee('Require operator selection and PIN');
-});
-
-test('printing settings require recent password confirmation', function () {
-    $this->actingAs(User::factory()->create())
-        ->get(route('printing.edit'))
-        ->assertRedirect();
 });
 
 test('an account can be configured as a shared print station', function () {
