@@ -5,9 +5,16 @@ use App\Http\Controllers\Api\PrintJobSubmissionController;
 use App\Http\Controllers\Auth\MicrosoftCallbackController;
 use App\Http\Controllers\Auth\MicrosoftRedirectController;
 use App\Http\Controllers\LabelPreviewController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::view('/', 'welcome')->name('home');
+Route::get('/', function (Request $request) {
+    if (! $request->user()) {
+        return redirect()->route('login');
+    }
+
+    return redirect()->route($request->user()->is_admin ? 'admin.dashboard' : 'print.station');
+})->name('home');
 Route::middleware(['guest', 'throttle:10,1'])->group(function (): void {
     Route::get('auth/microsoft', MicrosoftRedirectController::class)->name('auth.microsoft.redirect');
     Route::get('auth/microsoft/callback', MicrosoftCallbackController::class)->name('auth.microsoft.callback');
@@ -16,7 +23,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('print', 'print')->name('print.station');
     Route::get('print/catalog', PrintCatalogController::class)->name('print.catalog')->middleware('throttle:60,1');
     Route::post('print/jobs', PrintJobSubmissionController::class)->name('print.jobs.store')->middleware('throttle:print-submissions');
-    Route::view('dashboard', 'dashboard')->name('dashboard');
     Route::middleware('admin')->group(function (): void {
         Route::view('admin', 'admin.dashboard')->name('admin.dashboard');
         Route::livewire('admin/printers', 'pages::admin.printers')->name('admin.printers');

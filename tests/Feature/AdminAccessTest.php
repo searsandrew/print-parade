@@ -21,12 +21,14 @@ test('administrators can access administration', function () {
         ->assertSee('Bridges &amp; printers', false);
 });
 
-test('administration navigation is only shown to administrators', function () {
-    $this->actingAs(User::factory()->create())
-        ->get(route('dashboard'))
-        ->assertDontSee(route('admin.dashboard'));
-
+test('administration uses the menu bar without starter navigation', function () {
     $this->actingAs(User::factory()->admin()->create())
-        ->get(route('dashboard'))
-        ->assertSee(route('admin.dashboard'));
+        ->get(route('admin.dashboard'))
+        ->assertSee(route('admin.printers'))
+        ->assertSee(route('admin.print-jobs'))
+        ->assertSee(route('print.station'))
+        ->assertSee('Manage profile')
+        ->assertDontSee('Repository')
+        ->assertDontSee('Documentation')
+        ->assertDontSee('Dashboard');
 });

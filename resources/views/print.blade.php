@@ -6,14 +6,27 @@
     </head>
     <body class="min-h-screen bg-zinc-100 text-zinc-950 antialiased">
         <main x-data="printStation" x-init="init" class="mx-auto min-h-screen w-full max-w-3xl px-4 py-5 sm:px-6 sm:py-8">
-            <header class="mb-6 flex items-center justify-between gap-4">
+            <header class="mb-5 flex items-center justify-between gap-3 sm:mb-6 sm:gap-4">
                 <div>
                     <p class="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Print Parade</p>
-                    <h1 class="mt-1 text-3xl font-bold tracking-tight sm:text-4xl">Print labels</h1>
+                    <h1 class="mt-1 text-2xl font-bold tracking-tight sm:text-4xl">Print labels</h1>
                 </div>
-                <div class="rounded-full bg-white px-4 py-2 text-sm font-medium shadow-sm ring-1 ring-zinc-200">
-                    Production
-                </div>
+                <flux:dropdown position="bottom" align="end">
+                    <flux:profile :initials="auth()->user()->initials()" icon-trailing="chevron-down" class="bg-white shadow-sm ring-1 ring-zinc-200" />
+                    <flux:menu>
+                        <div class="px-2 py-1.5">
+                            <flux:heading class="truncate">{{ auth()->user()->name }}</flux:heading>
+                            <flux:text class="truncate text-sm">{{ auth()->user()->email }}</flux:text>
+                        </div>
+                        <flux:menu.separator />
+                        <flux:menu.item :href="route('profile.edit')" icon="user-circle" wire:navigate>{{ __('Manage profile') }}</flux:menu.item>
+                        <flux:menu.separator />
+                        <form method="POST" action="{{ route('logout') }}" class="w-full">
+                            @csrf
+                            <flux:menu.item as="button" type="submit" icon="arrow-right-start-on-rectangle" class="w-full cursor-pointer">{{ __('Log out') }}</flux:menu.item>
+                        </form>
+                    </flux:menu>
+                </flux:dropdown>
             </header>
 
             <div x-show="loading" class="rounded-2xl bg-white p-8 text-center text-lg shadow-sm ring-1 ring-zinc-200">

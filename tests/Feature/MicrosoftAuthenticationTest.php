@@ -32,7 +32,7 @@ test('microsoft authentication links an existing user by email', function () {
     mockMicrosoftCallback('cf3aa268-3435-4590-87af-9fb552032e29');
 
     $this->get(route('auth.microsoft.callback'))
-        ->assertRedirect(route('dashboard', absolute: false));
+        ->assertRedirect(route('home', absolute: false));
 
     $this->assertAuthenticatedAs($user);
     $user->refresh();
@@ -47,7 +47,7 @@ test('microsoft authentication provisions a new non-admin user', function () {
     mockMicrosoftCallback('cf3aa268-3435-4590-87af-9fb552032e29');
 
     $this->get(route('auth.microsoft.callback'))
-        ->assertRedirect(route('dashboard', absolute: false));
+        ->assertRedirect(route('home', absolute: false));
 
     $user = User::query()->sole();
 
