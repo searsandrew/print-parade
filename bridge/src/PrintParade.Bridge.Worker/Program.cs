@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using PrintParade.Bridge.Core;
 using PrintParade.Bridge.Windows;
 using PrintParade.Bridge.Worker;
@@ -42,6 +41,18 @@ if (string.Equals(command, "status", StringComparison.OrdinalIgnoreCase))
     return await RunStatusAsync(configurationStore, configurationPath);
 }
 
+if (string.Equals(command, "monitor", StringComparison.OrdinalIgnoreCase))
+{
+    using var monitorCancellation = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, eventArgs) =>
+    {
+        eventArgs.Cancel = true;
+        monitorCancellation.Cancel();
+    };
+    await BridgeStatusMonitor.RunAsync(monitorCancellation.Token);
+    return 0;
+}
+
 BridgeConfiguration configuration;
 
 try
@@ -73,16 +84,8 @@ builder.Services.AddSingleton(serviceProvider =>
 });
 builder.Services.AddSingleton<IPrintSpooler, WindowsRawPrintSpooler>();
 builder.Services.AddSingleton<PrintJobProcessor>();
-builder.Services.AddSingleton<IBridgeStatusSink>(
-    string.Equals(command, "monitor", StringComparison.OrdinalIgnoreCase)
-        ? new ConsoleBridgeStatusSink()
-        : new NullBridgeStatusSink());
+builder.Services.AddSingleton<IBridgeStatusSink, FileBridgeStatusSink>();
 builder.Services.AddHostedService<BridgeBackgroundService>();
-
-if (string.Equals(command, "monitor", StringComparison.OrdinalIgnoreCase))
-{
-    builder.Logging.ClearProviders();
-}
 
 await builder.Build().RunAsync();
 return 0;
@@ -105,7 +108,7 @@ static void ShowHelp()
     Console.WriteLine("  restart    Restart the installed Windows service");
     Console.WriteLine("  status     Show Windows service and Print Parade connection status");
     Console.WriteLine("  run        Run interactively with standard log output");
-    Console.WriteLine("  monitor    Run interactively with a live status dashboard");
+    Console.WriteLine("  monitor    Observe the installed service in a read-only live dashboard");
     Console.WriteLine("  help       Show this command list");
     Console.WriteLine();
     Console.WriteLine("All commands accept: --config <path>");
