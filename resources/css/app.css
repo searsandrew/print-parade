@@ -61,6 +61,16 @@ select:focus[data-flux-control] {
     @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
 }
 
+[data-flux-table] [data-flux-column]:first-child,
+[data-flux-table] [data-flux-cell]:first-child {
+    @apply ps-4;
+}
+
+[data-flux-table] [data-flux-column]:last-child,
+[data-flux-table] [data-flux-cell]:last-child {
+    @apply pe-4;
+}
+
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */
