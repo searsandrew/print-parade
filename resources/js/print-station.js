@@ -1,5 +1,5 @@
-document.addEventListener('alpine:init', () => {
-    window.Alpine.data('printStation', () => ({
+export function createPrintStation() {
+    return {
         catalog: { templates: [], printers: [], operators: [], authorization: { requires_operator_pin: false } },
         templateId: '',
         printerId: '',
@@ -47,9 +47,13 @@ document.addEventListener('alpine:init', () => {
         },
 
         templateChanged() {
-            this.values = {};
             this.printerId = '';
             this.confirmation = null;
+            this.resetLabelInputs();
+        },
+
+        resetLabelInputs() {
+            this.values = {};
 
             if (!this.selectedTemplate) {
                 return;
@@ -96,6 +100,8 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 this.confirmation = result;
+                this.resetLabelInputs();
+                this.quantity = 1;
                 this.pin = '';
             } catch (error) {
                 this.error = error.message;
@@ -103,5 +109,9 @@ document.addEventListener('alpine:init', () => {
                 this.submitting = false;
             }
         },
-    }));
+    };
+}
+
+document.addEventListener('alpine:init', () => {
+    window.Alpine.data('printStation', createPrintStation);
 });
