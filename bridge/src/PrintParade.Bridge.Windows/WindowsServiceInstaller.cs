@@ -40,7 +40,42 @@ public static class WindowsServiceInstaller
         await RunServiceControlAsync(["delete", ServiceName], cancellationToken);
     }
 
-    private static async Task RunServiceControlAsync(
+    public static async Task StartAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureWindows();
+        await RunServiceControlAsync(["start", ServiceName], cancellationToken);
+    }
+
+    public static async Task StopAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureWindows();
+        await RunServiceControlAsync(["stop", ServiceName], cancellationToken);
+    }
+
+    public static async Task RestartAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureWindows();
+        await RunServiceControlAsync(["stop", ServiceName], cancellationToken, allowFailure: true);
+        await WaitForStateAsync("STOPPED", cancellationToken);
+        await RunServiceControlAsync(["start", ServiceName], cancellationToken);
+    }
+
+    public static async Task<WindowsServiceStatus> StatusAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureWindows();
+        var result = await RunServiceControlAsync(["query", ServiceName], cancellationToken, allowFailure: true);
+        var installed = result.ExitCode == 0;
+        var stateLine = result.Output
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault(line => line.StartsWith("STATE", StringComparison.OrdinalIgnoreCase));
+        var stateParts = stateLine?.Split(':', 2).ElementAtOrDefault(1)?
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var state = stateParts?.ElementAtOrDefault(1) ?? "UNKNOWN";
+
+        return new WindowsServiceStatus(installed, state, result.Output.Trim(), result.Error.Trim());
+    }
+
+    private static async Task<ServiceControlResult> RunServiceControlAsync(
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken,
         bool allowFailure = false)
@@ -71,6 +106,25 @@ public static class WindowsServiceInstaller
             var detail = string.IsNullOrWhiteSpace(error) ? output : error;
             throw new Win32Exception(process.ExitCode, detail.Trim());
         }
+
+        return new ServiceControlResult(process.ExitCode, output, error);
+    }
+
+    private static async Task WaitForStateAsync(string expectedState, CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            var status = await StatusAsync(cancellationToken);
+
+            if (string.Equals(status.State, expectedState, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+        }
+
+        throw new TimeoutException($"The Print Parade Bridge service did not reach the {expectedState} state.");
     }
 
     private static void EnsureWindows()
@@ -80,4 +134,8 @@ public static class WindowsServiceInstaller
             throw new PlatformNotSupportedException("Windows services are available only on Windows.");
         }
     }
+
+    private sealed record ServiceControlResult(int ExitCode, string Output, string Error);
 }
+
+public sealed record WindowsServiceStatus(bool IsInstalled, string State, string Output, string Error);

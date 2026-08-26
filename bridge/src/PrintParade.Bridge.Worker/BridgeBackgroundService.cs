@@ -6,17 +6,30 @@ namespace PrintParade.Bridge.Worker;
 
 public sealed class BridgeBackgroundService(
     PrintJobProcessor processor,
+    BridgeApiClient bridgeClient,
+    BridgeConfiguration configuration,
+    IBridgeStatusSink statusSink,
     ILogger<BridgeBackgroundService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("Print Parade bridge started.");
+        statusSink.Started(configuration.ServerUrl);
+        var firstConnection = true;
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                if (firstConnection)
+                {
+                    var heartbeat = await bridgeClient.SendHeartbeatAsync(stoppingToken);
+                    statusSink.Connected(heartbeat.BridgeId);
+                    firstConnection = false;
+                }
+
                 var processedJob = await processor.ProcessNextAsync(stoppingToken);
+                statusSink.Polled(processedJob);
 
                 if (processedJob)
                 {
@@ -32,6 +45,7 @@ public sealed class BridgeBackgroundService(
             catch (Exception exception) when (exception is HttpRequestException or BridgeProtocolException)
             {
                 logger.LogWarning(exception, "Print Parade is temporarily unavailable.");
+                statusSink.Warning(exception.Message);
                 await DelayAfterFailureAsync(stoppingToken);
             }
             catch (Exception exception)
@@ -42,6 +56,7 @@ public sealed class BridgeBackgroundService(
         }
 
         logger.LogInformation("Print Parade bridge stopped.");
+        statusSink.Stopped();
     }
 
     private static async Task DelayAfterFailureAsync(CancellationToken cancellationToken)
