@@ -85,3 +85,61 @@ test('catalog refresh updates printer availability without clearing work in prog
     assert.equal(station.pin, '2468');
     assert.deepEqual(station.values, { part_number: 'CMM023' });
 });
+
+test('selecting a template automatically selects its only compatible printer', () => {
+    const station = createPrintStation();
+    station.catalog = {
+        templates: [{ id: 12, stock: { id: 4 }, fields: {} }],
+        printers: [
+            { id: 8, label_stock_id: 4, online: true },
+            { id: 9, label_stock_id: 7, online: true },
+        ],
+        operators: [],
+        authorization: { requires_operator_pin: false },
+    };
+    station.templateId = 12;
+
+    station.templateChanged();
+
+    assert.equal(station.printerId, 8);
+    assert.equal(station.selectedPrinter.id, 8);
+    assert.equal(station.printerIsAutomaticallySelected, true);
+});
+
+test('the only online printer is preferred when several printers carry the stock', () => {
+    const station = createPrintStation();
+    station.catalog = {
+        templates: [{ id: 12, stock: { id: 4 }, fields: {} }],
+        printers: [
+            { id: 8, label_stock_id: 4, online: false },
+            { id: 9, label_stock_id: 4, online: true },
+        ],
+        operators: [],
+        authorization: { requires_operator_pin: false },
+    };
+    station.templateId = 12;
+
+    station.templateChanged();
+
+    assert.equal(station.printerId, 9);
+    assert.equal(station.printerIsAutomaticallySelected, false);
+});
+
+test('printer selection remains open when several compatible printers are online', () => {
+    const station = createPrintStation();
+    station.catalog = {
+        templates: [{ id: 12, stock: { id: 4 }, fields: {} }],
+        printers: [
+            { id: 8, label_stock_id: 4, online: true },
+            { id: 9, label_stock_id: 4, online: true },
+        ],
+        operators: [],
+        authorization: { requires_operator_pin: false },
+    };
+    station.templateId = 12;
+
+    station.templateChanged();
+
+    assert.equal(station.printerId, '');
+    assert.equal(station.selectedPrinter, undefined);
+});

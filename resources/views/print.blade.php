@@ -74,13 +74,23 @@
                 <section class="grid gap-5 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:grid-cols-2 sm:p-7">
                     <div>
                         <label for="printer" class="mb-2 block text-base font-semibold">Printer</label>
-                        <select id="printer" x-model="printerId" required class="min-h-14 w-full rounded-xl border-zinc-300 bg-white px-4 text-lg shadow-sm focus:border-zinc-900 focus:ring-zinc-900">
+                        <select x-show="availablePrinters.length > 1" id="printer" x-model="printerId" x-bind:required="availablePrinters.length > 1" class="min-h-14 w-full rounded-xl border-zinc-300 bg-white px-4 text-lg shadow-sm focus:border-zinc-900 focus:ring-zinc-900">
                             <option value="">Select a printer</option>
                             <template x-for="printer in availablePrinters" :key="printer.id">
                                 <option :value="printer.id" :disabled="!printer.online" x-text="`${printer.name}${printer.location ? ` — ${printer.location}` : ''}${printer.online ? '' : ' (offline)'}`"></option>
                             </template>
                         </select>
+                        <div x-show="printerIsAutomaticallySelected" class="flex min-h-14 items-center justify-between gap-3 rounded-xl bg-zinc-50 px-4 ring-1 ring-zinc-200">
+                            <div class="min-w-0">
+                                <p class="truncate text-lg font-medium" x-text="selectedPrinter?.name"></p>
+                                <p x-show="selectedPrinter?.location" class="truncate text-sm text-zinc-500" x-text="selectedPrinter?.location"></p>
+                            </div>
+                            <span x-show="selectedPrinter?.online" class="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Online</span>
+                            <span x-show="selectedPrinter && !selectedPrinter.online" class="shrink-0 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">Offline</span>
+                        </div>
+                        <p x-show="printerIsAutomaticallySelected" class="mt-2 text-sm text-zinc-500">Selected automatically for this label stock.</p>
                         <p x-show="selectedTemplate && availablePrinters.length === 0" class="mt-2 text-sm font-medium text-amber-700">No active printer currently has this label stock loaded.</p>
+                        <p x-show="selectedPrinter && !selectedPrinter.online" class="mt-2 text-sm font-medium text-red-700">This printer is offline. Printing will be available automatically when its bridge reconnects.</p>
                     </div>
                     <div>
                         <label for="quantity" class="mb-2 block text-base font-semibold">Quantity</label>
@@ -112,7 +122,7 @@
                     <p class="mt-1">Job <span class="font-mono font-semibold" x-text="confirmation?.job_identifier"></span> · <span x-text="confirmation?.quantity"></span> labels</p>
                 </div>
 
-                <flux:button type="submit" variant="primary" x-bind:disabled="submitting" class="min-h-16 w-full rounded-2xl! text-xl! font-bold! shadow-lg">
+                <flux:button type="submit" variant="primary" x-bind:disabled="submitting || !selectedPrinter?.online" class="min-h-16 w-full rounded-2xl! text-xl! font-bold! shadow-lg">
                     <span x-show="!submitting">Queue print job</span>
                     <span x-show="submitting">Submitting…</span>
                 </flux:button>

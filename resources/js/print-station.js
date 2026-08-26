@@ -44,6 +44,7 @@ export function createPrintStation() {
                 }
 
                 this.catalog = await response.json();
+                this.synchronizePrinterSelection();
             } catch (error) {
                 if (initial) {
                     this.error = error.message;
@@ -73,10 +74,43 @@ export function createPrintStation() {
             );
         },
 
+        get onlinePrinters() {
+            return this.availablePrinters.filter((printer) => printer.online);
+        },
+
+        get selectedPrinter() {
+            return this.availablePrinters.find((printer) => String(printer.id) === String(this.printerId));
+        },
+
+        get printerIsAutomaticallySelected() {
+            return this.availablePrinters.length === 1;
+        },
+
+        synchronizePrinterSelection() {
+            if (this.selectedPrinter) {
+                return;
+            }
+
+            if (this.availablePrinters.length === 1) {
+                this.printerId = this.availablePrinters[0].id;
+
+                return;
+            }
+
+            if (this.onlinePrinters.length === 1) {
+                this.printerId = this.onlinePrinters[0].id;
+
+                return;
+            }
+
+            this.printerId = '';
+        },
+
         templateChanged() {
             this.printerId = '';
             this.confirmation = null;
             this.resetLabelInputs();
+            this.synchronizePrinterSelection();
         },
 
         resetLabelInputs() {
