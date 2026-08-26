@@ -5,7 +5,7 @@
         <!-- Session Status -->
         <x-auth-session-status class="text-center" :status="session('status')" />
 
-        <flux:button variant="primary" icon="building-office-2" :href="route('auth.microsoft.redirect')" class="max-w-2/3">
+        <flux:button variant="primary" icon="building-office-2" :href="route('auth.microsoft.redirect')" class="w-full">
             {{ __('Continue with Microsoft') }}
         </flux:button>
     </div>
