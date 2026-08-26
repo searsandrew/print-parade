@@ -5,7 +5,7 @@
         <style>[x-cloak] { display: none !important; }</style>
     </head>
     <body class="min-h-screen bg-zinc-100 text-zinc-950 antialiased">
-        <main x-data="printStation" x-init="init" class="mx-auto min-h-screen w-full max-w-3xl px-4 py-5 sm:px-6 sm:py-8">
+        <main x-data="printStation" class="mx-auto min-h-screen w-full max-w-3xl px-4 py-5 sm:px-6 sm:py-8">
             <header class="mb-5 flex items-center justify-between gap-3 sm:mb-6 sm:gap-4">
                 <div>
                     <p class="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">Print Parade</p>

@@ -49,3 +49,39 @@ test('a successful submission clears job inputs but preserves reusable selection
     assert.equal(station.employeeId, 5);
     assert.deepEqual(station.confirmation, { job_identifier: 'ABC123', quantity: 24 });
 });
+
+test('catalog refresh updates printer availability without clearing work in progress', async () => {
+    const station = createPrintStation();
+    station.catalog = {
+        templates: [{ id: 12, stock: { id: 4 }, fields: { part_number: { type: 'text' } } }],
+        printers: [{ id: 8, label_stock_id: 4, online: false }],
+        operators: [{ id: 5, name: 'Alex Operator' }],
+        authorization: { requires_operator_pin: true },
+    };
+    station.templateId = 12;
+    station.printerId = 8;
+    station.employeeId = 5;
+    station.quantity = 24;
+    station.pin = '2468';
+    station.values = { part_number: 'CMM023' };
+
+    globalThis.fetch = async () => ({
+        ok: true,
+        async json() {
+            return {
+                ...station.catalog,
+                printers: [{ id: 8, label_stock_id: 4, online: true }],
+            };
+        },
+    });
+
+    await station.refreshCatalog();
+
+    assert.equal(station.availablePrinters[0].online, true);
+    assert.equal(station.templateId, 12);
+    assert.equal(station.printerId, 8);
+    assert.equal(station.employeeId, 5);
+    assert.equal(station.quantity, 24);
+    assert.equal(station.pin, '2468');
+    assert.deepEqual(station.values, { part_number: 'CMM023' });
+});

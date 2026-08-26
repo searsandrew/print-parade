@@ -24,6 +24,13 @@ test('printer management requires administrator access', function () {
         ->assertSee('Bridges &amp; printers', false);
 });
 
+test('printer administration polls for bridge availability updates', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.printers')
+        ->assertSeeHtml('wire:poll.15s.visible');
+});
+
 test('administrators can create a bridge and receive its token once', function () {
     $this->actingAs(User::factory()->admin()->create());
 

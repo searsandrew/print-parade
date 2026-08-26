@@ -211,7 +211,7 @@ new #[Title('Bridges & printers')] class extends Component {
     }
 }; ?>
 
-<div class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8">
+<div wire:poll.15s.visible class="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <flux:breadcrumbs>

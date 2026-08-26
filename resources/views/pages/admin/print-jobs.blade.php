@@ -199,7 +199,7 @@ new #[Title('Print jobs')] class extends Component {
     }
 }; ?>
 
-<div class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-7">
+<div wire:poll.10s.visible class="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-7">
     <div>
         <flux:breadcrumbs>
             <flux:breadcrumbs.item :href="route('admin.dashboard')" wire:navigate>{{ __('Administration') }}</flux:breadcrumbs.item>

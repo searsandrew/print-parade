@@ -11,8 +11,29 @@ export function createPrintStation() {
         submitting: false,
         error: '',
         confirmation: null,
+        catalogPoller: null,
+        catalogRefreshing: false,
 
         async init() {
+            await this.refreshCatalog(true);
+            this.catalogPoller = window.setInterval(() => {
+                if (!document.hidden) {
+                    void this.refreshCatalog();
+                }
+            }, 15000);
+        },
+
+        destroy() {
+            window.clearInterval(this.catalogPoller);
+        },
+
+        async refreshCatalog(initial = false) {
+            if (this.catalogRefreshing) {
+                return;
+            }
+
+            this.catalogRefreshing = true;
+
             try {
                 const response = await fetch('/print/catalog', {
                     headers: { Accept: 'application/json' },
@@ -24,9 +45,15 @@ export function createPrintStation() {
 
                 this.catalog = await response.json();
             } catch (error) {
-                this.error = error.message;
+                if (initial) {
+                    this.error = error.message;
+                }
             } finally {
-                this.loading = false;
+                this.catalogRefreshing = false;
+
+                if (initial) {
+                    this.loading = false;
+                }
             }
         },
 

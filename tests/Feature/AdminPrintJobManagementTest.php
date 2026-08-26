@@ -25,6 +25,13 @@ test('print job administration requires administrator access', function () {
         ->assertSee('Print jobs');
 });
 
+test('print job administration polls for operational updates', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test('pages::admin.print-jobs')
+        ->assertSeeHtml('wire:poll.10s.visible');
+});
+
 test('administrators can search the print job audit history', function () {
     $this->actingAs(User::factory()->admin()->create());
     $matchingTemplate = LabelTemplate::factory()->create(['code' => 'CMM023']);
