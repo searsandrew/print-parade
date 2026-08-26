@@ -82,43 +82,22 @@ test('administrators cannot remove their own administrator access', function () 
     expect($admin->refresh()->is_admin)->toBeTrue();
 });
 
-test('administrators can set replace and remove operator pins', function () {
+test('user administration directs operator pin management to employees', function () {
     $this->actingAs(User::factory()->admin()->create());
-    $user = User::factory()->create();
 
-    $component = Livewire::test('pages::admin.users')
-        ->call('managePin', $user->id)
-        ->set('pin', '2468')
-        ->set('pin_confirmation', '2468')
-        ->call('savePin')
-        ->assertHasNoErrors();
-
-    expect($user->refresh()->verifiesPin('2468'))->toBeTrue();
-
-    $component
-        ->call('managePin', $user->id)
-        ->call('removePin')
-        ->assertHasNoErrors();
-
-    expect($user->refresh()->pin_hash)->toBeNull();
+    Livewire::test('pages::admin.users')
+        ->assertSee('Employee PINs are managed separately')
+        ->assertDontSee('New PIN');
 });
 
-test('different users may intentionally share an operator pin', function () {
+test('shared station users do not become selectable employees', function () {
     $this->actingAs(User::factory()->admin()->create());
-    $first = User::factory()->create();
-    $second = User::factory()->create();
+    $station = User::factory()->sharedPrintStation()->create(['name' => 'Production Department']);
 
-    foreach ([$first, $second] as $user) {
-        Livewire::test('pages::admin.users')
-            ->call('managePin', $user->id)
-            ->set('pin', '1357')
-            ->set('pin_confirmation', '1357')
-            ->call('savePin')
-            ->assertHasNoErrors();
-    }
-
-    expect($first->refresh()->verifiesPin('1357'))->toBeTrue()
-        ->and($second->refresh()->verifiesPin('1357'))->toBeTrue();
+    $this->actingAs($station)
+        ->getJson('/print/catalog')
+        ->assertOk()
+        ->assertJsonPath('operators', []);
 });
 
 test('user search and filters include print attribution counts', function () {

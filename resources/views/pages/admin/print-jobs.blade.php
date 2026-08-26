@@ -2,6 +2,7 @@
 
 use App\Labels\Enums\PrintJobStatus;
 use App\Models\LabelTemplate;
+use App\Models\Employee;
 use App\Models\Printer;
 use App\Models\PrintJob;
 use App\Models\User;
@@ -57,6 +58,7 @@ new #[Title('Print jobs')] class extends Component {
                 'printer.printBridge',
                 'submitter',
                 'executor',
+                'operatedByEmployee',
                 'claimingBridge',
             ])
             ->when($this->search !== '', function (Builder $query): void {
@@ -78,7 +80,8 @@ new #[Title('Print jobs')] class extends Component {
                 $query->whereHas('labelTemplateVersion', fn (Builder $query) => $query->where('label_template_id', $this->template));
             })
             ->when($this->printer !== '', fn (Builder $query) => $query->where('printer_id', $this->printer))
-            ->when($this->operator !== '', fn (Builder $query) => $query->where('executed_by', $this->operator))
+            ->when(str_starts_with($this->operator, 'user:'), fn (Builder $query) => $query->where('executed_by', substr($this->operator, 5)))
+            ->when(str_starts_with($this->operator, 'employee:'), fn (Builder $query) => $query->where('operated_by_employee_id', substr($this->operator, 9)))
             ->when($this->dateFrom !== '', fn (Builder $query) => $query->whereDate('created_at', '>=', $this->dateFrom))
             ->when($this->dateTo !== '', fn (Builder $query) => $query->whereDate('created_at', '<=', $this->dateTo))
             ->latest()
@@ -109,6 +112,16 @@ new #[Title('Print jobs')] class extends Component {
             ->get();
     }
 
+    /** @return Collection<int, Employee> */
+    #[Computed]
+    public function employees(): Collection
+    {
+        return Employee::query()
+            ->whereHas('operatedPrintJobs')
+            ->orderBy('name')
+            ->get();
+    }
+
     #[Computed]
     public function selectedJob(): ?PrintJob
     {
@@ -122,6 +135,7 @@ new #[Title('Print jobs')] class extends Component {
                 'printer.printBridge',
                 'submitter',
                 'executor',
+                'operatedByEmployee',
                 'claimingBridge',
             ])
             ->findOrFail($this->selectedJobId);
@@ -219,7 +233,10 @@ new #[Title('Print jobs')] class extends Component {
             <flux:select wire:model.live="operator" :label="__('Operator')">
                 <flux:select.option value="">{{ __('All operators') }}</flux:select.option>
                 @foreach ($this->operators as $filterOperator)
-                    <flux:select.option :value="$filterOperator->id">{{ $filterOperator->name }}</flux:select.option>
+                    <flux:select.option :value="'user:'.$filterOperator->id">{{ $filterOperator->name }} · {{ __('User') }}</flux:select.option>
+                @endforeach
+                @foreach ($this->employees as $filterEmployee)
+                    <flux:select.option :value="'employee:'.$filterEmployee->id">{{ $filterEmployee->name }} · {{ __('Employee') }}</flux:select.option>
                 @endforeach
             </flux:select>
             <flux:input wire:model.live="dateFrom" type="date" :label="__('From date')" />
@@ -261,7 +278,8 @@ new #[Title('Print jobs')] class extends Component {
                                 <div class="text-sm text-zinc-500">{{ $job->printer->location }}</div>
                             </flux:table.cell>
                             <flux:table.cell>
-                                <div>{{ $job->executor?->name ?? __('Not authorized') }}</div>
+                                <div>{{ $job->operatedByEmployee?->name ?? $job->executor?->name ?? __('Not authorized') }}</div>
+                                @if ($job->operatedByEmployee)<div class="text-sm text-zinc-500">{{ __('Employee PIN') }}</div>@endif
                                 @if ($job->submitter && ! $job->submitter->is($job->executor))
                                     <div class="text-sm text-zinc-500">{{ __('Submitted by :name', ['name' => $job->submitter->name]) }}</div>
                                 @endif
@@ -326,7 +344,7 @@ new #[Title('Print jobs')] class extends Component {
                     <div><flux:text class="text-sm">{{ __('Configured bridge') }}</flux:text><div class="mt-1 font-medium">{{ $job->printer->printBridge->name }}</div></div>
                     <div><flux:text class="text-sm">{{ __('Claiming bridge') }}</flux:text><div class="mt-1 font-medium">{{ $job->claimingBridge?->name ?? __('Not claimed') }}</div></div>
                     <div><flux:text class="text-sm">{{ __('Submitted by') }}</flux:text><div class="mt-1 font-medium">{{ $job->submitter?->name ?? __('Unknown') }}</div></div>
-                    <div><flux:text class="text-sm">{{ __('Executed by') }}</flux:text><div class="mt-1 font-medium">{{ $job->executor?->name ?? __('Not authorized') }}</div></div>
+                    <div><flux:text class="text-sm">{{ __('Operated by') }}</flux:text><div class="mt-1 font-medium">{{ $job->operatedByEmployee?->name ?? $job->executor?->name ?? __('Not authorized') }}</div><div class="text-sm text-zinc-500">{{ $job->operatedByEmployee ? __('Employee PIN') : __('Authenticated user') }}</div></div>
                     <div><flux:text class="text-sm">{{ __('Payload') }}</flux:text><div class="mt-1 font-medium">{{ $job->output_payload === null ? __('Not rendered') : trans_choice('{1} :count byte|[2,*] :count bytes', strlen($job->output_payload), ['count' => strlen($job->output_payload)]) }}</div></div>
                 </div>
 

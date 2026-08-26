@@ -11,7 +11,8 @@
                 ['icon' => 'rectangle-stack', 'title' => __('Label stocks'), 'description' => __('Manage physical label dimensions and media sensing.'), 'status' => __('Available'), 'href' => route('admin.label-stocks')],
                 ['icon' => 'document-text', 'title' => __('Templates & revisions'), 'description' => __('Create labels and publish immutable printer-neutral revisions.'), 'status' => __('Available'), 'href' => route('admin.label-templates')],
                 ['icon' => 'queue-list', 'title' => __('Print jobs'), 'description' => __('Inspect job history, status, attribution, and delivery failures.'), 'status' => __('Available'), 'href' => route('admin.print-jobs')],
-                ['icon' => 'users', 'title' => __('Users'), 'description' => __('Manage printing modes, operator PINs, and administrator access.'), 'status' => __('Available'), 'href' => route('admin.users')],
+                ['icon' => 'users', 'title' => __('Users'), 'description' => __('Manage login accounts, shared stations, and administrator access.'), 'status' => __('Available'), 'href' => route('admin.users')],
+                ['icon' => 'identification', 'title' => __('Employees'), 'description' => __('Manage production operators and their print PINs.'), 'status' => __('Available'), 'href' => route('admin.employees')],
             ] as $area)
                 <flux:card class="flex min-h-48 flex-col gap-4">
                     <div class="flex items-start justify-between gap-4">

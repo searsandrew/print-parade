@@ -8,6 +8,7 @@ use App\Labels\Enums\PrinterLanguage;
 use App\Labels\Enums\PrintJobStatus;
 use App\Labels\Rendering\LabelRenderContext;
 use App\Labels\Rendering\ZplRenderer;
+use App\Models\Employee;
 use App\Models\PrintJob;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -27,16 +28,16 @@ final readonly class PrintJobExecutor
      *
      * @throws AuthorizationException
      */
-    public function prepare(PrintJob $job, User $user, string $pin): PreparedPrintJob
+    public function prepare(PrintJob $job, Employee $employee, string $pin): PreparedPrintJob
     {
-        if (! $user->verifiesPin($pin)) {
-            throw new AuthorizationException('The selected user could not be authorized to print.');
+        if (! $employee->is_active || ! $employee->verifiesPin($pin)) {
+            throw new AuthorizationException('The selected employee could not be authorized to print.');
         }
 
-        return $this->prepareAuthorized($job, $user);
+        return $this->prepareAuthorized($job, $employee);
     }
 
-    public function prepareAuthorized(PrintJob $job, User $user): PreparedPrintJob
+    public function prepareAuthorized(PrintJob $job, User|Employee $operator): PreparedPrintJob
     {
         $job->loadMissing(['labelTemplateVersion.labelTemplate.labelStock', 'printer']);
 
@@ -73,7 +74,7 @@ final readonly class PrintJobExecutor
                 $resolvedDefinition,
                 LabelRenderContext::fromStock($version->labelTemplate->labelStock, $job->printer->dpi),
             );
-            $job->queue($user, $zpl, [
+            $job->queue($operator, $zpl, [
                 ...$inputValues,
                 ...$dataSourceValues,
                 'system' => $systemValues,
@@ -89,7 +90,7 @@ final readonly class PrintJobExecutor
             );
         } catch (Throwable $exception) {
             if ($job->status === PrintJobStatus::Pending) {
-                $job->failPreparation($user, $exception->getMessage());
+                $job->failPreparation($operator, $exception->getMessage());
             }
 
             throw $exception;

@@ -1,6 +1,7 @@
 <?php
 
 use App\Labels\Examples\CalibrationLabel;
+use App\Models\Employee;
 use App\Models\LabelStock;
 use App\Models\LabelTemplate;
 use App\Models\LabelTemplateVersion;
@@ -74,7 +75,7 @@ test('the catalog excludes unusable templates printers and users', function () {
     Printer::factory()->for($inactiveBridge)->create(['name' => 'Orphaned Printer']);
 
     $operator = catalogUserWithPin('Configured Operator', '4826');
-    User::factory()->create(['name' => 'No PIN User']);
+    Employee::factory()->create(['name' => 'No PIN Employee']);
 
     $response = $this->getJson('/print/catalog')->assertOk();
 
@@ -126,11 +127,11 @@ function catalogTemplate(string $name): LabelTemplate
     return $template;
 }
 
-function catalogUserWithPin(string $name, string $pin): User
+function catalogUserWithPin(string $name, string $pin): Employee
 {
-    $user = User::factory()->create(['name' => $name]);
-    $user->assignPin($pin);
-    $user->save();
+    $employee = Employee::factory()->create(['name' => $name]);
+    $employee->assignPin($pin);
+    $employee->save();
 
-    return $user;
+    return $employee;
 }

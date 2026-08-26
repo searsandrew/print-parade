@@ -4,24 +4,25 @@ use App\Labels\Enums\PrinterLanguage;
 use App\Labels\Enums\PrintJobStatus;
 use App\Labels\Examples\CalibrationLabel;
 use App\Labels\Printing\PrintJobExecutor;
+use App\Models\Employee;
 use App\Models\LabelStock;
 use App\Models\LabelTemplate;
 use App\Models\LabelTemplateVersion;
 use App\Models\Printer;
 use App\Models\PrintJob;
-use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 
-test('the selected user authorizes and prepares a zpl print job', function () {
-    $otherUser = printOperatorWithPin('4826');
-    $selectedUser = printOperatorWithPin('4826');
+test('the selected employee authorizes and prepares a zpl print job', function () {
+    $otherEmployee = printOperatorWithPin('4826');
+    $selectedEmployee = printOperatorWithPin('4826');
     $job = executablePrintJob();
 
-    $prepared = app(PrintJobExecutor::class)->prepare($job, $selectedUser, '4826');
+    $prepared = app(PrintJobExecutor::class)->prepare($job, $selectedEmployee, '4826');
 
-    expect($otherUser->id)->not->toBe($selectedUser->id)
+    expect($otherEmployee->id)->not->toBe($selectedEmployee->id)
         ->and($job->status)->toBe(PrintJobStatus::Queued)
-        ->and($job->executor->is($selectedUser))->toBeTrue()
+        ->and($job->operatedByEmployee->is($selectedEmployee))->toBeTrue()
+        ->and($job->executed_by)->toBeNull()
         ->and($job->queued_at)->not->toBeNull()
         ->and($job->output_payload)->toBe($prepared->zpl)
         ->and($job->output_checksum)->toBe(hash('sha256', $prepared->zpl))
@@ -42,7 +43,7 @@ test('an incorrect pin does not start the print job', function () {
     $job = executablePrintJob();
 
     expect(fn () => app(PrintJobExecutor::class)->prepare($job, $user, '1111'))
-        ->toThrow(AuthorizationException::class, 'The selected user could not be authorized to print.');
+        ->toThrow(AuthorizationException::class, 'The selected employee could not be authorized to print.');
 
     $job->refresh();
 
@@ -51,8 +52,8 @@ test('an incorrect pin does not start the print job', function () {
         ->and($job->started_at)->toBeNull();
 });
 
-test('a selected user without a configured pin cannot authorize printing', function () {
-    $user = User::factory()->create();
+test('a selected employee without a configured pin cannot authorize printing', function () {
+    $user = Employee::factory()->create();
     $job = executablePrintJob();
 
     expect(fn () => app(PrintJobExecutor::class)->prepare($job, $user, '4826'))
@@ -69,7 +70,7 @@ test('a rendering failure is recorded against the executing user', function () {
     $job->refresh();
 
     expect($job->status)->toBe(PrintJobStatus::Failed)
-        ->and($job->executed_by)->toBe($user->id)
+        ->and($job->operated_by_employee_id)->toBe($user->id)
         ->and($job->failed_at)->not->toBeNull()
         ->and($job->failure_message)->toBe('Field part_number is required.');
 });
@@ -97,13 +98,13 @@ test('unsupported printer languages are recorded as failed attempts', function (
         ->and($job->failure_message)->toBe('Printing in dpl is not implemented.');
 });
 
-function printOperatorWithPin(string $pin): User
+function printOperatorWithPin(string $pin): Employee
 {
-    $user = User::factory()->create();
-    $user->assignPin($pin);
-    $user->save();
+    $employee = Employee::factory()->create();
+    $employee->assignPin($pin);
+    $employee->save();
 
-    return $user;
+    return $employee;
 }
 
 /**

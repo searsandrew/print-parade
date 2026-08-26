@@ -3,7 +3,7 @@ document.addEventListener('alpine:init', () => {
         catalog: { templates: [], printers: [], operators: [], authorization: { requires_operator_pin: false } },
         templateId: '',
         printerId: '',
-        userId: '',
+        employeeId: '',
         quantity: 1,
         pin: '',
         values: {},
@@ -82,7 +82,7 @@ document.addEventListener('alpine:init', () => {
                     body: JSON.stringify({
                         label_template_id: Number(this.templateId),
                         printer_id: Number(this.printerId),
-                        user_id: this.requiresOperatorPin ? Number(this.userId) : null,
+                        employee_id: this.requiresOperatorPin ? Number(this.employeeId) : null,
                         pin: this.requiresOperatorPin ? this.pin : null,
                         quantity: Number(this.quantity),
                         values: this.values,

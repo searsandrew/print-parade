@@ -3,6 +3,7 @@
 namespace App\Labels\Printing;
 
 use App\Labels\Definitions\LabelDefinition;
+use App\Models\Employee;
 use App\Models\LabelTemplate;
 use App\Models\Printer;
 use App\Models\PrintJob;
@@ -15,13 +16,13 @@ final readonly class PrintJobSubmitter
     public function __construct(private PrintJobExecutor $executor) {}
 
     /** @param array<string, mixed> $values */
-    public function submit(LabelTemplate $template, Printer $printer, User $submitter, ?User $selectedOperator, ?string $pin, int $quantity, array $values): PrintJob
+    public function submit(LabelTemplate $template, Printer $printer, User $submitter, ?Employee $selectedOperator, ?string $pin, int $quantity, array $values): PrintJob
     {
         $operator = $submitter;
 
         if ($submitter->requires_print_operator_pin) {
-            if ($selectedOperator === null || $pin === null || ! $selectedOperator->verifiesPin($pin)) {
-                throw new AuthorizationException('The selected user could not be authorized to print.');
+            if ($selectedOperator === null || ! $selectedOperator->is_active || $pin === null || ! $selectedOperator->verifiesPin($pin)) {
+                throw new AuthorizationException('The selected employee could not be authorized to print.');
             }
 
             $operator = $selectedOperator;

@@ -2,6 +2,7 @@
 
 use App\Labels\Enums\PrintJobStatus;
 use App\Labels\Examples\CalibrationLabel;
+use App\Models\Employee;
 use App\Models\LabelStock;
 use App\Models\LabelTemplate;
 use App\Models\LabelTemplateVersion;
@@ -31,7 +32,8 @@ test('a selected user can authorize and queue a print job', function () {
         ->and($job->label_template_version_id)->toBe($publishedVersion->id)
         ->and($job->printer_id)->toBe($printer->id)
         ->and($job->submitted_by)->toBe($submitter->id)
-        ->and($job->executed_by)->toBe($user->id)
+        ->and($job->executed_by)->toBeNull()
+        ->and($job->operated_by_employee_id)->toBe($user->id)
         ->and($job->quantity)->toBe(10)
         ->and($job->output_payload)->toStartWith('^XA')
         ->and($job->output_checksum)->toBe(hash('sha256', $job->output_payload));
@@ -50,10 +52,10 @@ test('submission always uses the latest published template version', function ()
         'definition' => CalibrationLabel::definition(),
     ]);
     $printer = Printer::factory()->for($template->labelStock)->create();
-    $user = submissionUser('4826');
-    $this->actingAs($user);
+    $employee = submissionUser('4826');
+    $this->actingAs(User::factory()->create());
 
-    $response = $this->postJson('/print/jobs', submissionPayload($template, $printer, $user));
+    $response = $this->postJson('/print/jobs', submissionPayload($template, $printer, $employee));
 
     expect(PrintJob::query()->findOrFail($response->json('job_id'))->labelTemplateVersion->version)->toBe(2);
 });
@@ -87,7 +89,7 @@ test('invalid label values return validation details and retain the failed audit
     $job = PrintJob::query()->sole();
 
     expect($job->status)->toBe(PrintJobStatus::Failed)
-        ->and($job->executed_by)->toBe($user->id)
+        ->and($job->operated_by_employee_id)->toBe($user->id)
         ->and($job->failure_message)->toBe('Field part_number is required.');
 });
 
@@ -157,9 +159,10 @@ test('a personal account prints without selecting an operator or entering a pin'
     [$template] = publishedSubmissionTemplate();
     $printer = Printer::factory()->for($template->labelStock)->create();
     $user = User::factory()->create();
+    $employee = submissionUser('4826');
     $this->actingAs($user);
-    $payload = submissionPayload($template, $printer, $user);
-    unset($payload['user_id'], $payload['pin']);
+    $payload = submissionPayload($template, $printer, $employee);
+    unset($payload['employee_id'], $payload['pin']);
 
     $response = $this->postJson('/print/jobs', $payload)->assertCreated();
     $job = PrintJob::query()->findOrFail($response->json('job_id'));
@@ -188,22 +191,22 @@ function publishedSubmissionTemplate(): array
     return [$template, $version];
 }
 
-function submissionUser(string $pin): User
+function submissionUser(string $pin): Employee
 {
-    $user = User::factory()->create();
-    $user->assignPin($pin);
-    $user->save();
+    $employee = Employee::factory()->create();
+    $employee->assignPin($pin);
+    $employee->save();
 
-    return $user;
+    return $employee;
 }
 
 /** @return array<string, mixed> */
-function submissionPayload(LabelTemplate $template, Printer $printer, User $user): array
+function submissionPayload(LabelTemplate $template, Printer $printer, Employee $employee): array
 {
     return [
         'label_template_id' => $template->id,
         'printer_id' => $printer->id,
-        'user_id' => $user->id,
+        'employee_id' => $employee->id,
         'pin' => '4826',
         'quantity' => 10,
         'values' => CalibrationLabel::sampleInput(),

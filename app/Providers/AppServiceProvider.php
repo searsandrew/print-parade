@@ -70,7 +70,7 @@ class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('print-submissions', fn (Request $request): array => [
             Limit::perMinute(60)->by((string) $request->ip()),
-            Limit::perMinute(5)->by($request->ip().'|'.(string) $request->input('user_id')),
+            Limit::perMinute(5)->by($request->ip().'|'.(string) $request->input('employee_id')),
         ]);
     }
 }

@@ -3,6 +3,7 @@
 use App\Labels\DataSources\NetSuite\NetSuiteItemRepository;
 use App\Labels\Definitions\LabelDefinition;
 use App\Labels\Enums\PrintJobStatus;
+use App\Models\Employee;
 use App\Models\LabelStock;
 use App\Models\LabelTemplate;
 use App\Models\LabelTemplateVersion;
@@ -38,7 +39,7 @@ test('a published operator label flows from catalog through the bridge payload',
         'part_description' => 'Replacement filter assembly',
     ]);
     $station = User::factory()->sharedPrintStation()->create();
-    $operator = User::factory()->create(['name' => 'Amanda Operator']);
+    $operator = Employee::factory()->create(['name' => 'Amanda Operator']);
     $operator->assignPin('4826');
     $operator->save();
     $stock = LabelStock::factory()->create([
@@ -76,7 +77,7 @@ test('a published operator label flows from catalog through the bridge payload',
     $submission = $this->postJson('/print/jobs', [
         'label_template_id' => $template->id,
         'printer_id' => $printer->id,
-        'user_id' => $operator->id,
+        'employee_id' => $operator->id,
         'pin' => '4826',
         'quantity' => 25,
         'values' => [
@@ -92,7 +93,8 @@ test('a published operator label flows from catalog through the bridge payload',
 
     expect($job->label_template_version_id)->toBe($version->id)
         ->and($job->submitted_by)->toBe($station->id)
-        ->and($job->executed_by)->toBe($operator->id)
+        ->and($job->executed_by)->toBeNull()
+        ->and($job->operated_by_employee_id)->toBe($operator->id)
         ->and($job->output_payload)->toContain('^PW431', '^LL812', '^A0R,', '^BUR,')
         ->and($job->output_payload)->toContain('Part CMM023', 'Replacement filter assembly', '03600029145')
         ->and($job->resolved_values)->toMatchArray([

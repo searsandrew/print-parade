@@ -8,17 +8,10 @@ use Livewire\Component;
 new #[Title('Printing settings')] class extends Component {
     public bool $requiresPrintOperatorPin = false;
 
-    public bool $hasPrintPin = false;
-
-    public string $pin = '';
-
-    public string $pin_confirmation = '';
-
     public function mount(): void
     {
         $user = Auth::user();
         $this->requiresPrintOperatorPin = $user->requires_print_operator_pin;
-        $this->hasPrintPin = $user->pin_hash !== null;
     }
 
     public function updatePrintMode(): void
@@ -34,32 +27,6 @@ new #[Title('Printing settings')] class extends Component {
         Flux::toast(variant: 'success', text: __('Printing mode updated.'));
     }
 
-    public function updatePin(): void
-    {
-        $validated = $this->validate([
-            'pin' => ['required', 'string', 'regex:/\A\d{4,8}\z/', 'confirmed'],
-        ]);
-        $user = Auth::user();
-        $user->assignPin($validated['pin']);
-        $user->save();
-
-        $this->reset('pin', 'pin_confirmation');
-        $this->hasPrintPin = true;
-
-        Flux::toast(variant: 'success', text: __('Print PIN updated.'));
-    }
-
-    public function removePin(): void
-    {
-        $user = Auth::user();
-        $user->removePin();
-        $user->save();
-
-        $this->reset('pin', 'pin_confirmation');
-        $this->hasPrintPin = false;
-
-        Flux::toast(variant: 'success', text: __('Print PIN removed.'));
-    }
 }; ?>
 
 <section class="w-full">
@@ -84,32 +51,8 @@ new #[Title('Printing settings')] class extends Component {
             </flux:button>
         </form>
 
-        <flux:separator />
-
-        <section class="mt-8 space-y-5">
-            <div>
-                <flux:heading size="lg">{{ __('Operator PIN') }}</flux:heading>
-                <flux:subheading>
-                    {{ $hasPrintPin ? __('Your account has a print PIN configured.') : __('Add a PIN if this person should appear in shared-station operator lists.') }}
-                </flux:subheading>
-            </div>
-
-            <form wire:submit="updatePin" class="space-y-5">
-                <flux:input wire:model="pin" :label="__('New PIN')" type="password" inputmode="numeric" minlength="4" maxlength="8" autocomplete="new-password" viewable required />
-                <flux:input wire:model="pin_confirmation" :label="__('Confirm PIN')" type="password" inputmode="numeric" minlength="4" maxlength="8" autocomplete="new-password" viewable required />
-
-                <div class="flex flex-wrap gap-3">
-                    <flux:button variant="primary" type="submit" data-test="update-print-pin-button">
-                        {{ $hasPrintPin ? __('Replace PIN') : __('Set PIN') }}
-                    </flux:button>
-
-                    @if ($hasPrintPin)
-                        <flux:button variant="danger" type="button" wire:click="removePin" wire:confirm="{{ __('Remove your print PIN?') }}" data-test="remove-print-pin-button">
-                            {{ __('Remove PIN') }}
-                        </flux:button>
-                    @endif
-                </div>
-            </form>
-        </section>
+        <flux:callout class="mt-8" icon="identification">
+            {{ __('Employee identities and PINs are managed by an administrator, separately from login accounts.') }}
+        </flux:callout>
     </x-pages::settings.layout>
 </section>

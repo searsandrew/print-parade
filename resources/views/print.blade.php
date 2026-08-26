@@ -75,7 +75,7 @@
                     </div>
                     <div x-show="requiresOperatorPin">
                         <label for="operator" class="mb-2 block text-base font-semibold">Your name</label>
-                        <select id="operator" x-model="userId" x-bind:required="requiresOperatorPin" x-bind:disabled="!requiresOperatorPin" class="min-h-14 w-full rounded-xl border-zinc-300 bg-white px-4 text-lg shadow-sm focus:border-zinc-900 focus:ring-zinc-900">
+                        <select id="operator" x-model="employeeId" x-bind:required="requiresOperatorPin" x-bind:disabled="!requiresOperatorPin" class="min-h-14 w-full rounded-xl border-zinc-300 bg-white px-4 text-lg shadow-sm focus:border-zinc-900 focus:ring-zinc-900">
                             <option value="">Select your name</option>
                             <template x-for="operator in catalog.operators" :key="operator.id">
                                 <option :value="operator.id" x-text="operator.name"></option>

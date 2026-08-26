@@ -31,6 +31,7 @@ use LogicException;
  * @property string|null $output_payload
  * @property string|null $output_checksum
  * @property int|null $executed_by
+ * @property int|null $operated_by_employee_id
  * @property int|null $claimed_by_bridge
  * @property string|null $claim_token_hash
  * @property Carbon|null $queued_at
@@ -89,7 +90,7 @@ class PrintJob extends Model
     }
 
     /** @param array<string, mixed> $resolvedValues */
-    public function queue(User $user, string $payload, array $resolvedValues = []): void
+    public function queue(User|Employee $operator, string $payload, array $resolvedValues = []): void
     {
         $this->assertStatus(PrintJobStatus::Pending);
         $updated = self::query()
@@ -100,7 +101,8 @@ class PrintJob extends Model
                 'output_payload' => $payload,
                 'output_checksum' => hash('sha256', $payload),
                 'resolved_values' => $resolvedValues,
-                'executed_by' => $user->getKey(),
+                'executed_by' => $operator instanceof User ? $operator->getKey() : null,
+                'operated_by_employee_id' => $operator instanceof Employee ? $operator->getKey() : null,
                 'queued_at' => now(),
             ]);
 
@@ -181,14 +183,15 @@ class PrintJob extends Model
         ])->save();
     }
 
-    public function failPreparation(User $user, string $message): void
+    public function failPreparation(User|Employee $operator, string $message): void
     {
         $this->assertStatus(PrintJobStatus::Pending);
         $this->assertFailureMessage($message);
 
         $this->forceFill([
             'status' => PrintJobStatus::Failed,
-            'executed_by' => $user->getKey(),
+            'executed_by' => $operator instanceof User ? $operator->getKey() : null,
+            'operated_by_employee_id' => $operator instanceof Employee ? $operator->getKey() : null,
             'failed_at' => now(),
             'failure_message' => $message,
         ])->save();
@@ -229,6 +232,12 @@ class PrintJob extends Model
     public function executor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'executed_by');
+    }
+
+    /** @return BelongsTo<Employee, $this> */
+    public function operatedByEmployee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'operated_by_employee_id');
     }
 
     /** @return BelongsTo<User, $this> */

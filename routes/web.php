@@ -28,6 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('admin.label-template-editor');
         Route::livewire('admin/print-jobs', 'pages::admin.print-jobs')->name('admin.print-jobs');
         Route::livewire('admin/users', 'pages::admin.users')->name('admin.users');
+        Route::livewire('admin/employees', 'pages::admin.employees')->name('admin.employees');
     });
     Route::post('label-template-versions/{labelTemplateVersion}/preview', LabelPreviewController::class)
         ->name('label-template-versions.preview');

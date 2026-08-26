@@ -23,9 +23,6 @@ new #[Title('Users')] class extends Component {
     #[Url]
     public string $accountType = '';
 
-    #[Url]
-    public string $pinStatus = '';
-
     public ?int $userId = null;
 
     public string $name = '';
@@ -39,16 +36,6 @@ new #[Title('Users')] class extends Component {
     public bool $requiresPrintOperatorPin = false;
 
     public bool $isAdmin = false;
-
-    public ?int $pinUserId = null;
-
-    public string $pinUserName = '';
-
-    public bool $hasPin = false;
-
-    public string $pin = '';
-
-    public string $pin_confirmation = '';
 
     public function boot(): void
     {
@@ -71,15 +58,13 @@ new #[Title('Users')] class extends Component {
             ->when($this->accountType === 'admin', fn (Builder $query) => $query->where('is_admin', true))
             ->when($this->accountType === 'personal', fn (Builder $query) => $query->where('requires_print_operator_pin', false))
             ->when($this->accountType === 'shared', fn (Builder $query) => $query->where('requires_print_operator_pin', true))
-            ->when($this->pinStatus === 'configured', fn (Builder $query) => $query->whereNotNull('pin_hash'))
-            ->when($this->pinStatus === 'missing', fn (Builder $query) => $query->whereNull('pin_hash'))
             ->orderBy('name')
             ->paginate(25);
     }
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'accountType', 'pinStatus'], true)) {
+        if (in_array($property, ['search', 'accountType'], true)) {
             $this->resetPage();
             unset($this->users);
         }
@@ -87,7 +72,7 @@ new #[Title('Users')] class extends Component {
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'accountType', 'pinStatus');
+        $this->reset('search', 'accountType');
         $this->resetPage();
         unset($this->users);
     }
@@ -181,50 +166,6 @@ new #[Title('Users')] class extends Component {
         Flux::toast(variant: 'success', text: __('User saved.'));
     }
 
-    public function managePin(int $userId): void
-    {
-        $user = User::query()->findOrFail($userId);
-
-        $this->pinUserId = $user->id;
-        $this->pinUserName = $user->name;
-        $this->hasPin = $user->pin_hash !== null;
-        $this->reset('pin', 'pin_confirmation');
-        $this->resetValidation();
-
-        Flux::modal('pin-form')->show();
-    }
-
-    public function savePin(): void
-    {
-        $validated = $this->validate([
-            'pinUserId' => ['required', 'integer', 'exists:users,id'],
-            'pin' => ['required', 'string', 'regex:/\A\d{4,8}\z/', 'confirmed'],
-        ]);
-
-        $user = User::query()->findOrFail($validated['pinUserId']);
-        $user->assignPin($validated['pin']);
-        $user->save();
-
-        $this->hasPin = true;
-        $this->reset('pin', 'pin_confirmation');
-        unset($this->users);
-        Flux::modal('pin-form')->close();
-        Flux::toast(variant: 'success', text: __('Operator PIN saved.'));
-    }
-
-    public function removePin(): void
-    {
-        $user = User::query()->findOrFail($this->pinUserId);
-        $user->removePin();
-        $user->save();
-
-        $this->hasPin = false;
-        $this->reset('pin', 'pin_confirmation');
-        unset($this->users);
-        Flux::modal('pin-form')->close();
-        Flux::toast(variant: 'success', text: __('Operator PIN removed.'));
-    }
-
     private function resetUserForm(): void
     {
         $this->reset('userId', 'name', 'email', 'password', 'password_confirmation');
@@ -242,24 +183,19 @@ new #[Title('Users')] class extends Component {
                 <flux:breadcrumbs.item>{{ __('Users') }}</flux:breadcrumbs.item>
             </flux:breadcrumbs>
             <flux:heading size="xl" class="mt-4">{{ __('Users') }}</flux:heading>
-            <flux:text class="mt-2">{{ __('Manage login accounts, print authorization mode, administrator access, and operator PINs.') }}</flux:text>
+            <flux:text class="mt-2">{{ __('Manage login accounts, shared-station authorization, and administrator access. Employee PINs are managed separately.') }}</flux:text>
         </div>
         <flux:button variant="primary" icon="user-plus" wire:click="createUser">{{ __('Add user') }}</flux:button>
     </div>
 
     <flux:card>
-        <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div class="grid gap-4 md:grid-cols-3">
             <flux:input wire:model.live.debounce.350ms="search" icon="magnifying-glass" :label="__('Search')" placeholder="Name or email" />
             <flux:select wire:model.live="accountType" :label="__('Account type')">
                 <flux:select.option value="">{{ __('All accounts') }}</flux:select.option>
                 <flux:select.option value="admin">{{ __('Administrators') }}</flux:select.option>
                 <flux:select.option value="personal">{{ __('Personal accounts') }}</flux:select.option>
                 <flux:select.option value="shared">{{ __('Shared stations') }}</flux:select.option>
-            </flux:select>
-            <flux:select wire:model.live="pinStatus" :label="__('Operator PIN')">
-                <flux:select.option value="">{{ __('Any PIN status') }}</flux:select.option>
-                <flux:select.option value="configured">{{ __('PIN configured') }}</flux:select.option>
-                <flux:select.option value="missing">{{ __('No PIN') }}</flux:select.option>
             </flux:select>
             <div class="flex items-end"><flux:button variant="ghost" icon="x-mark" wire:click="clearFilters">{{ __('Clear filters') }}</flux:button></div>
         </div>
@@ -271,7 +207,6 @@ new #[Title('Users')] class extends Component {
                 <flux:table.columns>
                     <flux:table.column>{{ __('User') }}</flux:table.column>
                     <flux:table.column>{{ __('Printing mode') }}</flux:table.column>
-                    <flux:table.column>{{ __('Operator PIN') }}</flux:table.column>
                     <flux:table.column>{{ __('Print history') }}</flux:table.column>
                     <flux:table.column>{{ __('Security') }}</flux:table.column>
                     <flux:table.column></flux:table.column>
@@ -291,9 +226,6 @@ new #[Title('Users')] class extends Component {
                                 </flux:badge>
                             </flux:table.cell>
                             <flux:table.cell>
-                                <flux:badge :color="$user->pin_hash ? 'green' : 'zinc'" size="sm">{{ $user->pin_hash ? __('Configured') : __('Not configured') }}</flux:badge>
-                            </flux:table.cell>
-                            <flux:table.cell>
                                 <div>{{ trans_choice('{0} No jobs executed|{1} :count job executed|[2,*] :count jobs executed', $user->executed_print_jobs_count, ['count' => $user->executed_print_jobs_count]) }}</div>
                                 <div class="text-sm text-zinc-500">{{ trans_choice('{0} No jobs submitted|{1} :count job submitted|[2,*] :count jobs submitted', $user->submitted_print_jobs_count, ['count' => $user->submitted_print_jobs_count]) }}</div>
                             </flux:table.cell>
@@ -306,13 +238,12 @@ new #[Title('Users')] class extends Component {
                             </flux:table.cell>
                             <flux:table.cell>
                                 <div class="flex justify-end gap-2">
-                                    <flux:button size="sm" variant="ghost" icon="key" wire:click="managePin({{ $user->id }})">{{ __('PIN') }}</flux:button>
                                     <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="editUser({{ $user->id }})">{{ __('Edit') }}</flux:button>
                                 </div>
                             </flux:table.cell>
                         </flux:table.row>
                     @empty
-                        <flux:table.row><flux:table.cell colspan="6"><div class="py-10 text-center text-zinc-500">{{ __('No users match these filters.') }}</div></flux:table.cell></flux:table.row>
+                        <flux:table.row><flux:table.cell colspan="5"><div class="py-10 text-center text-zinc-500">{{ __('No users match these filters.') }}</div></flux:table.cell></flux:table.row>
                     @endforelse
                 </flux:table.rows>
             </flux:table>
@@ -341,21 +272,4 @@ new #[Title('Users')] class extends Component {
         </form>
     </flux:modal>
 
-    <flux:modal name="pin-form" class="md:w-lg">
-        <div class="space-y-6">
-            <div>
-                <flux:heading size="lg">{{ __('Operator PIN for :name', ['name' => $pinUserName]) }}</flux:heading>
-                <flux:text class="mt-2">{{ __('PINs may be reused by different people because the operator selects their name before entering it.') }}</flux:text>
-            </div>
-            <form wire:submit="savePin" class="space-y-5">
-                <flux:input wire:model="pin" :label="__('New PIN')" type="password" inputmode="numeric" minlength="4" maxlength="8" autocomplete="new-password" viewable required />
-                <flux:input wire:model="pin_confirmation" :label="__('Confirm PIN')" type="password" inputmode="numeric" minlength="4" maxlength="8" autocomplete="new-password" viewable required />
-                <div class="flex flex-wrap justify-end gap-2">
-                    @if ($hasPin)<flux:button type="button" variant="danger" wire:click="removePin" wire:confirm="{{ __('Remove this operator PIN? The user will disappear from shared-station operator lists.') }}">{{ __('Remove PIN') }}</flux:button>@endif
-                    <flux:modal.close><flux:button type="button" variant="ghost">{{ __('Cancel') }}</flux:button></flux:modal.close>
-                    <flux:button type="submit" variant="primary">{{ $hasPin ? __('Replace PIN') : __('Set PIN') }}</flux:button>
-                </div>
-            </form>
-        </div>
-    </flux:modal>
 </div>

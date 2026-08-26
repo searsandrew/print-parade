@@ -31,36 +31,22 @@ test('an account can be configured as a shared print station', function () {
     expect($user->refresh()->requires_print_operator_pin)->toBeTrue();
 });
 
-test('a user can set and remove their operator pin', function () {
+test('printing settings explain that employee pins are administered separately', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    $component = Livewire::test('pages::settings.printing')
-        ->set('pin', '4826')
-        ->set('pin_confirmation', '4826')
-        ->call('updatePin')
-        ->assertHasNoErrors()
-        ->assertSet('hasPrintPin', true)
-        ->assertSet('pin', '')
-        ->assertSet('pin_confirmation', '');
-
-    expect($user->refresh()->verifiesPin('4826'))->toBeTrue();
-
-    $component->call('removePin')
-        ->assertHasNoErrors()
-        ->assertSet('hasPrintPin', false);
-
-    expect($user->refresh()->verifiesPin('4826'))->toBeFalse();
+    Livewire::test('pages::settings.printing')
+        ->assertSee('Employee identities and PINs are managed by an administrator')
+        ->assertDontSee('New PIN');
 });
 
-test('operator pin confirmation and format are validated', function (string $pin, string $confirmation) {
+test('printing settings never expose employee pin fields', function (string $pin, string $confirmation) {
     $this->actingAs(User::factory()->create());
 
     Livewire::test('pages::settings.printing')
-        ->set('pin', $pin)
-        ->set('pin_confirmation', $confirmation)
-        ->call('updatePin')
-        ->assertHasErrors('pin');
+        ->assertDontSee($pin)
+        ->assertDontSee($confirmation)
+        ->assertDontSee('Confirm PIN');
 })->with([
     ['123', '123'],
     ['12ab', '12ab'],
