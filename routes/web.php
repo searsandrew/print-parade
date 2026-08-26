@@ -24,7 +24,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('print/catalog', PrintCatalogController::class)->name('print.catalog')->middleware('throttle:60,1');
     Route::post('print/jobs', PrintJobSubmissionController::class)->name('print.jobs.store')->middleware('throttle:print-submissions');
     Route::middleware('admin')->group(function (): void {
-        Route::view('admin', 'admin.dashboard')->name('admin.dashboard');
+        Route::livewire('admin', 'pages::admin.dashboard')->name('admin.dashboard');
         Route::livewire('admin/printers', 'pages::admin.printers')->name('admin.printers');
         Route::livewire('admin/label-stocks', 'pages::admin.label-stocks')->name('admin.label-stocks');
         Route::livewire('admin/label-templates', 'pages::admin.label-templates')->name('admin.label-templates');
