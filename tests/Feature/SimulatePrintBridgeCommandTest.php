@@ -7,7 +7,7 @@ use App\Models\PrintJob;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 
-test('the local bridge simulator claims inspects and completes a queued job', function () {
+test('the local bridge simulator claims inspects and marks a queued job spooled', function () {
     Storage::fake('local');
     $bridge = PrintBridge::factory()->create(['name' => 'Packing Bridge']);
     $printer = Printer::factory()->for($bridge)->create([
@@ -18,7 +18,7 @@ test('the local bridge simulator claims inspects and completes a queued job', fu
 
     $this->artisan('print-bridge:simulate', [
         'bridge' => (string) $bridge->id,
-        '--complete' => true,
+        '--spooled' => true,
     ])
         ->expectsOutputToContain('packing-zebra-01')
         ->expectsOutputToContain($job->id)
@@ -26,7 +26,7 @@ test('the local bridge simulator claims inspects and completes a queued job', fu
 
     Storage::disk('local')->assertExists("print-tests/{$job->id}.zpl");
     expect(Storage::disk('local')->get("print-tests/{$job->id}.zpl"))->toBe('^XA^FO20,20^FDTest^FS^XZ')
-        ->and($job->refresh()->status)->toBe(PrintJobStatus::Completed);
+        ->and($job->refresh()->status)->toBe(PrintJobStatus::Spooled);
 });
 
 test('the local bridge simulator can record a simulated failure', function () {

@@ -13,7 +13,7 @@ use RuntimeException;
 
 #[Signature('print-bridge:simulate
     {bridge? : Active bridge ID or exact name}
-    {--complete : Mark the claimed job completed after inspection}
+    {--spooled : Mark the claimed job sent to the printer after inspection}
     {--fail= : Mark the claimed job failed with this message}
     {--leave-claimed : Leave the job claimed for manual inspection}')]
 #[Description('Claim and inspect one queued print job without sending it to a physical printer')]
@@ -27,8 +27,8 @@ class SimulatePrintBridge extends Command
             return self::FAILURE;
         }
 
-        if ($this->option('complete') && $this->option('fail') !== null) {
-            $this->components->error('Use either --complete or --fail, not both.');
+        if ($this->option('spooled') && $this->option('fail') !== null) {
+            $this->components->error('Use either --spooled or --fail, not both.');
 
             return self::INVALID;
         }
@@ -70,9 +70,9 @@ class SimulatePrintBridge extends Command
 
         $disposition = $this->disposition();
 
-        if ($disposition === 'complete') {
-            $job->complete($bridge, $claim->claimToken);
-            $this->components->info("Print job {$job->id} marked completed.");
+        if ($disposition === 'spooled') {
+            $job->markSpooled($bridge, $claim->claimToken);
+            $this->components->info("Print job {$job->id} marked sent to printer.");
         } elseif ($disposition === 'fail') {
             $message = (string) $this->option('fail');
 
@@ -135,8 +135,8 @@ class SimulatePrintBridge extends Command
 
     private function disposition(): string
     {
-        if ($this->option('complete')) {
-            return 'complete';
+        if ($this->option('spooled')) {
+            return 'spooled';
         }
 
         if ($this->option('fail') !== null) {
@@ -149,7 +149,7 @@ class SimulatePrintBridge extends Command
 
         $disposition = $this->choice(
             'What should happen to the simulated job?',
-            ['leave-claimed', 'complete', 'fail'],
+            ['leave-claimed', 'spooled', 'fail'],
             'leave-claimed',
         );
 

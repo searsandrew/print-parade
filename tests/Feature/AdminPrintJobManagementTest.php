@@ -48,7 +48,7 @@ test('administrators can filter jobs by lifecycle and equipment', function () {
         'failed_at' => now(),
         'failure_message' => 'Printer unavailable.',
     ]);
-    $otherJob = PrintJob::factory()->create(['status' => PrintJobStatus::Completed]);
+    $otherJob = PrintJob::factory()->create(['status' => PrintJobStatus::Spooled]);
 
     Livewire::test('pages::admin.print-jobs')
         ->set('status', PrintJobStatus::Failed->value)
@@ -119,4 +119,18 @@ test('delivery uncertain details warn against blind reprinting', function () {
         ->call('viewJob', $job->id)
         ->assertSee('Delivery is uncertain')
         ->assertSee('Do not reprint until an operator confirms');
+});
+
+test('spooled job details explain that physical printing is unconfirmed', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $job = PrintJob::factory()->create([
+        'status' => PrintJobStatus::Spooled,
+        'spooled_at' => now(),
+    ]);
+
+    Livewire::test('pages::admin.print-jobs')
+        ->call('viewJob', $job->id)
+        ->assertSee('Sent to the Windows printer queue')
+        ->assertSee('not that the printer physically produced every label')
+        ->assertSee('Sent to printer');
 });

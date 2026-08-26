@@ -54,7 +54,7 @@ test('a bridge acknowledgement requires the matching claim token', function () {
     $job = queuedBridgeJob($bridge);
     $job->claim($bridge);
 
-    $this->withToken($token)->postJson("/api/bridge/jobs/{$job->id}/complete", [
+    $this->withToken($token)->postJson("/api/bridge/jobs/{$job->id}/spooled", [
         'claim_token' => 'incorrect',
     ])->assertNotFound();
 
@@ -67,26 +67,39 @@ test('a bridge receives no content when it has no queued jobs', function () {
     $this->withToken($token)->postJson('/api/bridge/jobs/claim')->assertNoContent();
 });
 
-test('the claiming bridge can complete or fail its jobs', function () {
+test('the claiming bridge can mark a job spooled or failed', function () {
     [$bridge, $token] = bridgeWithToken();
-    $completed = queuedBridgeJob($bridge);
+    $spooled = queuedBridgeJob($bridge);
     $failed = queuedBridgeJob($bridge);
-    $completedToken = $completed->claim($bridge);
+    $spooledToken = $spooled->claim($bridge);
     $failedToken = $failed->claim($bridge);
 
-    $this->withToken($token)->postJson("/api/bridge/jobs/{$completed->id}/complete", [
-        'claim_token' => $completedToken,
+    $this->withToken($token)->postJson("/api/bridge/jobs/{$spooled->id}/spooled", [
+        'claim_token' => $spooledToken,
     ])
         ->assertOk()
-        ->assertJson(['status' => 'completed']);
+        ->assertJson(['status' => 'spooled']);
     $this->withToken($token)->postJson("/api/bridge/jobs/{$failed->id}/fail", [
         'claim_token' => $failedToken,
         'message' => 'Windows spooler rejected the job.',
     ])->assertOk()->assertJson(['status' => 'failed']);
 
-    expect($completed->refresh()->status)->toBe(PrintJobStatus::Completed)
+    expect($spooled->refresh()->status)->toBe(PrintJobStatus::Spooled)
         ->and($failed->refresh()->status)->toBe(PrintJobStatus::Failed)
         ->and($failed->failure_message)->toBe('Windows spooler rejected the job.');
+});
+
+test('the legacy complete endpoint records that the job was only spooled', function () {
+    [$bridge, $token] = bridgeWithToken();
+    $job = queuedBridgeJob($bridge);
+    $claimToken = $job->claim($bridge);
+
+    $this->withToken($token)->postJson("/api/bridge/jobs/{$job->id}/complete", [
+        'claim_token' => $claimToken,
+    ])->assertOk()->assertJson(['status' => 'spooled']);
+
+    expect($job->refresh()->status)->toBe(PrintJobStatus::Spooled)
+        ->and($job->spooled_at)->not->toBeNull();
 });
 
 test('a different bridge cannot report a claimed job result', function () {
@@ -95,7 +108,7 @@ test('a different bridge cannot report a claimed job result', function () {
     $job = queuedBridgeJob($bridge);
     $claimToken = $job->claim($bridge);
 
-    $this->withToken($otherToken)->postJson("/api/bridge/jobs/{$job->id}/complete", [
+    $this->withToken($otherToken)->postJson("/api/bridge/jobs/{$job->id}/spooled", [
         'claim_token' => $claimToken,
     ])
         ->assertNotFound();

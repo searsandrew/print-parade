@@ -117,12 +117,12 @@ test('a published operator label flows from catalog through the bridge payload',
         ]);
 
     $this->withToken($bridgeToken)
-        ->postJson("/api/bridge/jobs/{$job->id}/complete", [
+        ->postJson("/api/bridge/jobs/{$job->id}/spooled", [
             'claim_token' => $claim->json('claim_token'),
         ])
         ->assertOk();
 
-    expect($job->refresh()->status)->toBe(PrintJobStatus::Completed);
+    expect($job->refresh()->status)->toBe(PrintJobStatus::Spooled);
 });
 
 function endToEndDefinition(): LabelDefinition

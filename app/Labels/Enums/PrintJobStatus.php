@@ -8,7 +8,7 @@ enum PrintJobStatus: string
     case Queued = 'queued';
     case Processing = 'processing';
     case DeliveryUncertain = 'delivery_uncertain';
-    case Completed = 'completed';
+    case Spooled = 'spooled';
     case Failed = 'failed';
     case Cancelled = 'cancelled';
 }

@@ -51,10 +51,10 @@ public sealed class BridgeApiClient
         return job;
     }
 
-    public async Task CompleteJobAsync(ClaimedPrintJob job, CancellationToken cancellationToken = default)
+    public async Task MarkJobSpooledAsync(ClaimedPrintJob job, CancellationToken cancellationToken = default)
     {
         using var response = await httpClient.PostAsJsonAsync(
-            $"jobs/{job.JobId}/complete",
+            $"jobs/{job.JobId}/spooled",
             new { claim_token = job.ClaimToken },
             JsonOptions,
             cancellationToken);

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('bridge')->middleware(AuthenticatePrintBridge::class)->group(function (): void {
     Route::post('heartbeat', [PrintBridgeController::class, 'heartbeat']);
     Route::post('jobs/claim', [PrintBridgeController::class, 'claim']);
-    Route::post('jobs/{printJob}/complete', [PrintBridgeController::class, 'complete']);
+    Route::post('jobs/{printJob}/spooled', [PrintBridgeController::class, 'spooled']);
+    Route::post('jobs/{printJob}/complete', [PrintBridgeController::class, 'legacyComplete']);
     Route::post('jobs/{printJob}/fail', [PrintBridgeController::class, 'fail']);
 });

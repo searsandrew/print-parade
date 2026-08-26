@@ -39,7 +39,7 @@ use LogicException;
  * @property Carbon|null $lease_expires_at
  * @property Carbon|null $delivery_uncertain_at
  * @property Carbon|null $started_at
- * @property Carbon|null $completed_at
+ * @property Carbon|null $spooled_at
  * @property Carbon|null $failed_at
  * @property Carbon|null $cancelled_at
  * @property string|null $failure_message
@@ -67,7 +67,7 @@ class PrintJob extends Model
             'lease_expires_at' => 'immutable_datetime',
             'delivery_uncertain_at' => 'immutable_datetime',
             'started_at' => 'immutable_datetime',
-            'completed_at' => 'immutable_datetime',
+            'spooled_at' => 'immutable_datetime',
             'failed_at' => 'immutable_datetime',
             'cancelled_at' => 'immutable_datetime',
         ];
@@ -152,14 +152,14 @@ class PrintJob extends Model
         return $claimToken;
     }
 
-    public function complete(PrintBridge $bridge, string $claimToken): void
+    public function markSpooled(PrintBridge $bridge, string $claimToken): void
     {
         $this->assertStatus(PrintJobStatus::Processing);
         $this->assertClaim($bridge, $claimToken);
 
         $this->forceFill([
-            'status' => PrintJobStatus::Completed,
-            'completed_at' => now(),
+            'status' => PrintJobStatus::Spooled,
+            'spooled_at' => now(),
         ])->save();
     }
 

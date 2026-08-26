@@ -54,9 +54,9 @@ public sealed class BridgeApiClientTests
     }
 
     [Fact]
-    public async Task CompleteSendsTheClaimToken()
+    public async Task MarkSpooledSendsTheClaimToken()
     {
-        var handler = new RecordingHandler(_ => JsonResponse(new { status = "completed" }));
+        var handler = new RecordingHandler(_ => JsonResponse(new { status = "spooled" }));
         var client = CreateClient(handler);
         var job = new ClaimedPrintJob(
             "01ABC",
@@ -68,19 +68,19 @@ public sealed class BridgeApiClientTests
             "^XA^FDTEST^FS^XZ",
             "8088512094f8e019146eb7207797aec65ee8f13a0507fecd8e0982d9f1306ce7");
 
-        await client.CompleteJobAsync(job, CancellationToken.None);
+        await client.MarkJobSpooledAsync(job, CancellationToken.None);
 
-        Assert.Equal("https://print.pacb.online/api/bridge/jobs/01ABC/complete", handler.Request?.RequestUri?.ToString());
+        Assert.Equal("https://print.pacb.online/api/bridge/jobs/01ABC/spooled", handler.Request?.RequestUri?.ToString());
         using var document = JsonDocument.Parse(handler.RequestBody!);
         Assert.Equal("claim-token", document.RootElement.GetProperty("claim_token").GetString());
     }
 
     [Fact]
-    public async Task ProcessorPrintsAndCompletesAValidZplJob()
+    public async Task ProcessorSpoolsAndAcknowledgesAValidZplJob()
     {
         var requests = new Queue<Func<HttpResponseMessage>>([
             () => JobResponse(),
-            () => JsonResponse(new { status = "completed" }),
+            () => JsonResponse(new { status = "spooled" }),
         ]);
         var handler = new RecordingHandler(_ => requests.Dequeue()());
         var spooler = new RecordingSpooler();
@@ -90,7 +90,7 @@ public sealed class BridgeApiClientTests
 
         Assert.True(processed);
         Assert.Equal("01ABC", spooler.Job?.JobId);
-        Assert.EndsWith("/api/bridge/jobs/01ABC/complete", handler.Requests[1].RequestUri?.ToString());
+        Assert.EndsWith("/api/bridge/jobs/01ABC/spooled", handler.Requests[1].RequestUri?.ToString());
     }
 
     [Fact]

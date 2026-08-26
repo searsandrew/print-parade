@@ -32,7 +32,7 @@ public sealed class PrintJobProcessor(BridgeApiClient bridgeClient, IPrintSpoole
             return true;
         }
 
-        await bridgeClient.CompleteJobAsync(job, cancellationToken);
+        await bridgeClient.MarkJobSpooledAsync(job, cancellationToken);
 
         return true;
     }

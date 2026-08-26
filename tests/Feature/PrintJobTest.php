@@ -29,7 +29,7 @@ test('a print job preserves its template version inputs and quantity', function 
         ->and($job->printer)->not->toBeNull();
 });
 
-test('a pending print job can be queued claimed and completed', function () {
+test('a pending print job can be queued claimed and marked spooled', function () {
     $user = User::factory()->create();
     $job = PrintJob::factory()->create();
 
@@ -48,10 +48,10 @@ test('a pending print job can be queued claimed and completed', function () {
         ->and($job->claimed_at)->not->toBeNull()
         ->and($job->started_at)->not->toBeNull();
 
-    $job->complete($bridge, $claimToken);
+    $job->markSpooled($bridge, $claimToken);
 
-    expect($job->status)->toBe(PrintJobStatus::Completed)
-        ->and($job->completed_at)->not->toBeNull();
+    expect($job->status)->toBe(PrintJobStatus::Spooled)
+        ->and($job->spooled_at)->not->toBeNull();
 });
 
 test('a processing print job can fail with an audit message', function () {
@@ -103,18 +103,18 @@ test('a stale queued view cannot cancel a job after a bridge claims it', functio
 
 test('print job lifecycle rejects invalid transitions', function () {
     $user = User::factory()->create();
-    $completedJob = PrintJob::factory()->create();
-    $completedJob->queue($user, '^XA^XZ');
-    $bridge = $completedJob->printer->printBridge;
-    $claimToken = $completedJob->claim($bridge);
-    $completedJob->complete($bridge, $claimToken);
+    $spooledJob = PrintJob::factory()->create();
+    $spooledJob->queue($user, '^XA^XZ');
+    $bridge = $spooledJob->printer->printBridge;
+    $claimToken = $spooledJob->claim($bridge);
+    $spooledJob->markSpooled($bridge, $claimToken);
 
-    expect(fn () => $completedJob->queue($user, '^XA^XZ'))->toThrow(LogicException::class)
-        ->and(fn () => $completedJob->cancel())->toThrow(LogicException::class);
+    expect(fn () => $spooledJob->queue($user, '^XA^XZ'))->toThrow(LogicException::class)
+        ->and(fn () => $spooledJob->cancel())->toThrow(LogicException::class);
 
     $pendingJob = PrintJob::factory()->create();
 
-    expect(fn () => $pendingJob->complete($pendingJob->printer->printBridge, 'invalid'))->toThrow(LogicException::class)
+    expect(fn () => $pendingJob->markSpooled($pendingJob->printer->printBridge, 'invalid'))->toThrow(LogicException::class)
         ->and(fn () => $pendingJob->fail($pendingJob->printer->printBridge, 'invalid', 'No printer.'))->toThrow(LogicException::class);
 });
 

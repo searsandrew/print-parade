@@ -39,15 +39,20 @@ class PrintBridgeController extends Controller
         ]);
     }
 
-    public function complete(Request $request, PrintJob $printJob): JsonResponse
+    public function spooled(Request $request, PrintJob $printJob): JsonResponse
     {
         $bridge = $this->bridge($request);
         abort_unless($printJob->claimed_by_bridge === $bridge->id, 404);
         $validated = $request->validate(['claim_token' => ['required', 'string']]);
         abort_unless($printJob->matchesClaim($bridge, $validated['claim_token']), 404);
-        $printJob->complete($bridge, $validated['claim_token']);
+        $printJob->markSpooled($bridge, $validated['claim_token']);
 
-        return response()->json(['status' => 'completed']);
+        return response()->json(['status' => 'spooled']);
+    }
+
+    public function legacyComplete(Request $request, PrintJob $printJob): JsonResponse
+    {
+        return $this->spooled($request, $printJob);
     }
 
     public function fail(Request $request, PrintJob $printJob): JsonResponse

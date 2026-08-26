@@ -179,7 +179,7 @@ new #[Title('Print jobs')] class extends Component {
             PrintJobStatus::Queued => __('Queued'),
             PrintJobStatus::Processing => __('Processing'),
             PrintJobStatus::DeliveryUncertain => __('Delivery uncertain'),
-            PrintJobStatus::Completed => __('Completed'),
+            PrintJobStatus::Spooled => __('Sent to printer'),
             PrintJobStatus::Failed => __('Failed'),
             PrintJobStatus::Cancelled => __('Cancelled'),
         };
@@ -192,7 +192,7 @@ new #[Title('Print jobs')] class extends Component {
             PrintJobStatus::Queued => 'blue',
             PrintJobStatus::Processing => 'amber',
             PrintJobStatus::DeliveryUncertain => 'red',
-            PrintJobStatus::Completed => 'green',
+            PrintJobStatus::Spooled => 'green',
             PrintJobStatus::Failed => 'red',
             PrintJobStatus::Cancelled => 'zinc',
         };
@@ -326,6 +326,10 @@ new #[Title('Print jobs')] class extends Component {
                     <flux:callout variant="danger" icon="exclamation-triangle" heading="{{ __('Delivery is uncertain') }}">
                         {{ __('The bridge claimed this job but did not acknowledge it before the lease expired. Do not reprint until an operator confirms whether labels were produced.') }}
                     </flux:callout>
+                @elseif ($job->status === PrintJobStatus::Spooled)
+                    <flux:callout variant="success" icon="printer" heading="{{ __('Sent to the Windows printer queue') }}">
+                        {{ __('The bridge successfully handed this job to Windows. This confirms spooling, not that the printer physically produced every label.') }}
+                    </flux:callout>
                 @elseif ($job->failure_message)
                     <flux:callout variant="danger" icon="x-circle" heading="{{ __('Job failed') }}">{{ $job->failure_message }}</flux:callout>
                 @endif
@@ -359,7 +363,7 @@ new #[Title('Print jobs')] class extends Component {
                             __('Claimed') => $job->claimed_at,
                             __('Lease expires') => $job->lease_expires_at,
                             __('Delivery uncertain') => $job->delivery_uncertain_at,
-                            __('Completed') => $job->completed_at,
+                            __('Sent to printer') => $job->spooled_at,
                             __('Failed') => $job->failed_at,
                             __('Cancelled') => $job->cancelled_at,
                         ] as $label => $timestamp)
