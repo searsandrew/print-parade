@@ -29,8 +29,8 @@ final readonly class ZplRenderer implements LabelRenderer
             '^PW'.$context->widthInDots(),
             '^LL'.$context->heightInDots(),
             '^PON',
-            '^LT0',
-            '^LS0',
+            '^LT'.$context->millimetersToDots($context->verticalCorrectionInMillimeters),
+            '^LS'.$context->millimetersToDots($context->horizontalCorrectionInMillimeters),
             '^LH0,0',
         ];
 

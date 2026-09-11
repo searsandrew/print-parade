@@ -12,6 +12,8 @@ final readonly class LabelRenderContext
         public float $heightInMillimeters,
         public int $dotsPerInch,
         public ?string $previewArtworkDataUri = null,
+        public float $horizontalCorrectionInMillimeters = 0.0,
+        public float $verticalCorrectionInMillimeters = 0.0,
     ) {
         if ($widthInMillimeters <= 0 || $heightInMillimeters <= 0) {
             throw new InvalidArgumentException('Label dimensions must be positive.');
@@ -22,13 +24,20 @@ final readonly class LabelRenderContext
         }
     }
 
-    public static function fromStock(LabelStock $stock, int $dotsPerInch, bool $includePreviewArtwork = false): self
-    {
+    public static function fromStock(
+        LabelStock $stock,
+        int $dotsPerInch,
+        bool $includePreviewArtwork = false,
+        float $horizontalCorrectionInMillimeters = 0.0,
+        float $verticalCorrectionInMillimeters = 0.0,
+    ): self {
         return new self(
             widthInMillimeters: (float) $stock->width,
             heightInMillimeters: (float) $stock->height,
             dotsPerInch: $dotsPerInch,
             previewArtworkDataUri: $includePreviewArtwork ? $stock->previewArtworkDataUri() : null,
+            horizontalCorrectionInMillimeters: $horizontalCorrectionInMillimeters,
+            verticalCorrectionInMillimeters: $verticalCorrectionInMillimeters,
         );
     }
 

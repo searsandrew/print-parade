@@ -33,6 +33,10 @@ new #[Title('Bridges & printers')] class extends Component {
 
     public int|string $printerDpi = 203;
 
+    public string $printerHorizontalCorrection = '0';
+
+    public string $printerVerticalCorrection = '0';
+
     public string $printerIdentifier = '';
 
     public bool $printerIsActive = true;
@@ -146,6 +150,8 @@ new #[Title('Bridges & printers')] class extends Component {
         $this->printerLocation = $printer->location ?? '';
         $this->printerLanguage = $printer->language->value;
         $this->printerDpi = $printer->dpi;
+        $this->printerHorizontalCorrection = $printer->horizontal_correction;
+        $this->printerVerticalCorrection = $printer->vertical_correction;
         $this->printerIdentifier = $printer->bridge_identifier;
         $this->printerIsActive = $printer->is_active;
         $this->resetValidation();
@@ -162,6 +168,8 @@ new #[Title('Bridges & printers')] class extends Component {
             'printerLocation' => ['nullable', 'string', 'max:255'],
             'printerLanguage' => ['required', Rule::enum(PrinterLanguage::class)],
             'printerDpi' => ['required', 'integer', Rule::in([203, 300])],
+            'printerHorizontalCorrection' => ['required', 'numeric', 'between:-25,25'],
+            'printerVerticalCorrection' => ['required', 'numeric'],
             'printerIdentifier' => [
                 'required',
                 'string',
@@ -177,6 +185,17 @@ new #[Title('Bridges & printers')] class extends Component {
             ? new Printer()
             : Printer::query()->findOrFail($this->printerId);
 
+        $verticalCorrectionDots = (int) round((float) $validated['printerVerticalCorrection'] / 25.4 * (int) $validated['printerDpi']);
+
+        if (abs($verticalCorrectionDots) > 120) {
+            $this->addError('printerVerticalCorrection', __('Vertical correction must be within ±120 printer dots (:millimeters mm at :dpi DPI).', [
+                'millimeters' => number_format(120 / (int) $validated['printerDpi'] * 25.4, 2),
+                'dpi' => $validated['printerDpi'],
+            ]));
+
+            return;
+        }
+
         $printer->fill([
             'print_bridge_id' => $validated['printerBridgeId'],
             'label_stock_id' => $validated['printerLabelStockId'],
@@ -184,6 +203,8 @@ new #[Title('Bridges & printers')] class extends Component {
             'location' => filled($validated['printerLocation']) ? $validated['printerLocation'] : null,
             'language' => $validated['printerLanguage'],
             'dpi' => $validated['printerDpi'],
+            'horizontal_correction' => number_format((float) $validated['printerHorizontalCorrection'], 3, '.', ''),
+            'vertical_correction' => number_format((float) $validated['printerVerticalCorrection'], 3, '.', ''),
             'bridge_identifier' => $validated['printerIdentifier'],
             'is_active' => $validated['printerIsActive'],
         ])->save();
@@ -206,6 +227,8 @@ new #[Title('Bridges & printers')] class extends Component {
         $this->reset('printerId', 'printerBridgeId', 'printerLabelStockId', 'printerName', 'printerLocation', 'printerIdentifier');
         $this->printerLanguage = PrinterLanguage::Zpl->value;
         $this->printerDpi = 203;
+        $this->printerHorizontalCorrection = '0';
+        $this->printerVerticalCorrection = '0';
         $this->printerIsActive = true;
         $this->resetValidation();
     }
@@ -343,6 +366,15 @@ new #[Title('Bridges & printers')] class extends Component {
                     <flux:select.option value="203">{{ __('203 DPI') }}</flux:select.option>
                     <flux:select.option value="300">{{ __('300 DPI') }}</flux:select.option>
                 </flux:select>
+            </div>
+            <div class="space-y-3">
+                <div class="grid gap-5 sm:grid-cols-2">
+                    <flux:input wire:model="printerHorizontalCorrection" :label="__('Horizontal print correction (mm)')" type="number" min="-25" max="25" step="0.1" required />
+                    <flux:input wire:model="printerVerticalCorrection" :label="__('Vertical print correction (mm)')" type="number" step="0.1" required />
+                </div>
+                <flux:callout icon="adjustments-horizontal">
+                    {{ __('Use correction only when a printer shifts the entire design. Negative vertical values move the physical print upward; template coordinates remain measured from the label’s top-left corner.') }}
+                </flux:callout>
             </div>
             <flux:input wire:model="printerIdentifier" :label="__('Bridge identifier')" placeholder="packing-zebra-01" required />
             <flux:switch wire:model="printerIsActive" :label="__('Printer is active')" :description="__('Disabled printers are hidden from the print station and receive no new jobs.')" />

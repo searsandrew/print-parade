@@ -72,7 +72,12 @@ final readonly class PrintJobExecutor
             );
             $zpl = $this->renderer->render(
                 $resolvedDefinition,
-                LabelRenderContext::fromStock($version->labelTemplate->labelStock, $job->printer->dpi),
+                LabelRenderContext::fromStock(
+                    $version->labelTemplate->labelStock,
+                    $job->printer->dpi,
+                    horizontalCorrectionInMillimeters: (float) $job->printer->horizontal_correction,
+                    verticalCorrectionInMillimeters: (float) $job->printer->vertical_correction,
+                ),
             );
             $job->queue($operator, $zpl, [
                 ...$inputValues,

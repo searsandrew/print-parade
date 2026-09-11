@@ -27,6 +27,8 @@ class PrinterFactory extends Factory
             'location' => fake()->randomElement(['Packing', 'Shipping', 'Production']),
             'language' => PrinterLanguage::Zpl,
             'dpi' => fake()->randomElement([203, 300]),
+            'horizontal_correction' => '0.000',
+            'vertical_correction' => '0.000',
             'bridge_identifier' => fake()->bothify('printer-####'),
             'is_active' => true,
         ];

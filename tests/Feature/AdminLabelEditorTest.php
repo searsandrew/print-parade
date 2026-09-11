@@ -38,7 +38,8 @@ test('a new design starts with the required job identifier selected', function (
         ->assertSet('elements.0.type', LabelElementType::JobIdentifier->value)
         ->assertSet('fields', [])
         ->assertSee('aspect-ratio:', false)
-        ->assertSee('maxWidth:', false);
+        ->assertSee('maxWidth:', false)
+        ->assertSee("zoom: 'fit'", false);
 });
 
 test('the designer lists code-owned datasource fields and lookup inputs', function () {

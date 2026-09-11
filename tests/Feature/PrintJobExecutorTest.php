@@ -38,6 +38,22 @@ test('the selected employee authorizes and prepares a zpl print job', function (
         ->and($prepared->zpl)->toEndWith('^XZ');
 });
 
+test('printer position correction is included in the queued zpl', function () {
+    $employee = printOperatorWithPin('4826');
+    $printer = Printer::factory()->create([
+        'dpi' => 203,
+        'horizontal_correction' => '1.500',
+        'vertical_correction' => '-10.500',
+    ]);
+    $job = executablePrintJob([], $printer);
+
+    $prepared = app(PrintJobExecutor::class)->prepare($job, $employee, '4826');
+
+    expect($prepared->zpl)
+        ->toContain('^LT-84')
+        ->toContain('^LS12');
+});
+
 test('an incorrect pin does not start the print job', function () {
     $user = printOperatorWithPin('4826');
     $job = executablePrintJob();

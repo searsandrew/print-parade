@@ -914,7 +914,7 @@ new #[Title('Label designer')] class extends Component {
             </div>
         </flux:card>
 
-        <flux:card x-data="{ zoom: 'actual' }" class="flex min-w-0 flex-col overflow-hidden bg-zinc-100 p-0! dark:bg-zinc-900">
+        <flux:card x-data="{ zoom: 'fit' }" class="flex min-w-0 flex-col overflow-hidden bg-zinc-100 p-0! dark:bg-zinc-900">
             <div class="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-800">
                 <div>
                     <flux:text class="text-xs">{{ __('Finished-label view · approximate physical size') }}</flux:text>
@@ -1168,7 +1168,7 @@ new #[Title('Label designer')] class extends Component {
     <flux:modal name="designer-preview" class="md:w-4xl">
         <div class="space-y-5">
             <div><flux:heading size="lg">{{ $this->template->code }} ({{ $revisionCode }})</flux:heading><flux:text>{{ __('Printer-media preview at 203 DPI with sample values. The feed direction runs from top to bottom.') }}</flux:text></div>
-            <div class="flex min-h-80 items-center justify-center overflow-auto rounded-lg bg-zinc-100 p-6 dark:bg-zinc-800 [&>svg]:max-h-[60vh] [&>svg]:max-w-full">{!! $previewSvg !!}</div>
+            <div class="flex min-h-80 items-center justify-center overflow-auto rounded-lg bg-zinc-100 p-6 dark:bg-zinc-800 [&>svg]:h-auto [&>svg]:max-h-[60vh] [&>svg]:w-full [&>svg]:max-w-lg">{!! $previewSvg !!}</div>
             <div class="flex justify-end"><flux:modal.close><flux:button variant="primary">{{ __('Close') }}</flux:button></flux:modal.close></div>
         </div>
     </flux:modal>

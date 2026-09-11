@@ -37,6 +37,22 @@ test('each label resets persistent printer origin and orientation settings', fun
         ->toContain('^FO0,0');
 });
 
+test('printer position corrections are converted from millimeters to zpl dots', function () {
+    $context = new LabelRenderContext(
+        widthInMillimeters: 101.6,
+        heightInMillimeters: 50.8,
+        dotsPerInch: 203,
+        horizontalCorrectionInMillimeters: 1.5,
+        verticalCorrectionInMillimeters: -10.5,
+    );
+
+    $zpl = (new ZplRenderer)->render(new ResolvedLabelDefinition([zplTextElement()], []), $context);
+
+    expect($zpl)
+        ->toContain('^LT-84')
+        ->toContain('^LS12');
+});
+
 test('semantic fonts rotation alignment and bold weight map to zpl', function () {
     $element = zplTextElement([
         'rotation' => 90,

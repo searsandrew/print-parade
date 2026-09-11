@@ -81,6 +81,8 @@ test('administrators can create and update a printer', function () {
         ->set('printerLocation', 'Packing Station 1')
         ->set('printerLanguage', PrinterLanguage::Zpl->value)
         ->set('printerDpi', 300)
+        ->set('printerHorizontalCorrection', '-1.5')
+        ->set('printerVerticalCorrection', '-8.5')
         ->set('printerIdentifier', 'packing-zebra-01')
         ->call('savePrinter')
         ->assertHasNoErrors();
@@ -99,7 +101,25 @@ test('administrators can create and update a printer', function () {
         ->and($printer->label_stock_id)->toBe($stock->id)
         ->and($printer->language)->toBe(PrinterLanguage::Zpl)
         ->and($printer->dpi)->toBe(300)
+        ->and($printer->horizontal_correction)->toBe('-1.500')
+        ->and($printer->vertical_correction)->toBe('-8.500')
         ->and($printer->is_active)->toBeFalse();
+});
+
+test('vertical printer correction is constrained by the zpl label top range', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $bridge = PrintBridge::factory()->create();
+    $stock = LabelStock::factory()->create();
+
+    Livewire::test('pages::admin.printers')
+        ->call('createPrinter', $bridge->id)
+        ->set('printerLabelStockId', $stock->id)
+        ->set('printerName', 'Packing Zebra')
+        ->set('printerIdentifier', 'packing-zebra')
+        ->set('printerDpi', 300)
+        ->set('printerVerticalCorrection', '-11')
+        ->call('savePrinter')
+        ->assertHasErrors('printerVerticalCorrection');
 });
 
 test('bridge identifiers must be unique within a bridge', function () {

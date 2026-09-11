@@ -393,7 +393,7 @@ new #[Title('Templates & revisions')] class extends Component {
                 <flux:heading size="lg">{{ $previewTitle }}</flux:heading>
                 <flux:text class="mt-1">{{ __('Preview rendered at 203 DPI with generated sample values.') }}</flux:text>
             </div>
-            <div class="flex min-h-80 items-center justify-center overflow-auto rounded-lg bg-zinc-100 p-6 dark:bg-zinc-800 [&>svg]:max-h-[60vh] [&>svg]:max-w-full">
+            <div class="flex min-h-80 items-center justify-center overflow-auto rounded-lg bg-zinc-100 p-6 dark:bg-zinc-800 [&>svg]:h-auto [&>svg]:max-h-[60vh] [&>svg]:w-full [&>svg]:max-w-lg">
                 {!! $previewSvg !!}
             </div>
             <div class="flex justify-end"><flux:modal.close><flux:button variant="primary">{{ __('Close') }}</flux:button></flux:modal.close></div>
