@@ -28,6 +28,9 @@ final readonly class ZplRenderer implements LabelRenderer
             '^CI28',
             '^PW'.$context->widthInDots(),
             '^LL'.$context->heightInDots(),
+            '^PON',
+            '^LT0',
+            '^LS0',
             '^LH0,0',
         ];
 

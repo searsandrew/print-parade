@@ -17,10 +17,24 @@ test('text is rendered as a complete zpl label at the selected resolution', func
             '^CI28',
             '^PW812',
             '^LL406',
+            '^PON',
+            '^LT0',
+            '^LS0',
             '^LH0,0',
             '^FO40,40^A0N,32,32^FH\\^FDPart ABC-123^FS',
             '^XZ',
         ]));
+});
+
+test('each label resets persistent printer origin and orientation settings', function () {
+    $zpl = (new ZplRenderer)->render(
+        new ResolvedLabelDefinition([zplTextElement(['x' => 0, 'y' => 0])], []),
+        new LabelRenderContext(101.6, 50.8, 203),
+    );
+
+    expect($zpl)
+        ->toContain("^PON\n^LT0\n^LS0\n^LH0,0")
+        ->toContain('^FO0,0');
 });
 
 test('semantic fonts rotation alignment and bold weight map to zpl', function () {
