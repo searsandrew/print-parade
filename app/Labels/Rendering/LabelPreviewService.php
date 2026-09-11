@@ -36,7 +36,7 @@ final readonly class LabelPreviewService
 
         return $this->renderer->render(
             $resolvedDefinition,
-            LabelRenderContext::fromStock($version->labelTemplate->labelStock, $dotsPerInch),
+            LabelRenderContext::fromStock($version->labelTemplate->labelStock, $dotsPerInch, includePreviewArtwork: true),
         );
     }
 

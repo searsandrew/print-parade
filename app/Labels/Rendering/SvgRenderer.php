@@ -48,6 +48,12 @@ final readonly class SvgRenderer implements LabelRenderer
                 $context->dotsPerInch,
             ),
             '<rect width="100%" height="100%" fill="white"/>',
+            ...($context->previewArtworkDataUri === null ? [] : [sprintf(
+                '<image width="%s" height="%s" preserveAspectRatio="none" href="%s" data-stock-preview-artwork="true"/>',
+                $width,
+                $height,
+                self::xml($context->previewArtworkDataUri),
+            )]),
             ...$elements,
             '</svg>',
         ]);

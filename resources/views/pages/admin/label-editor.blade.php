@@ -424,7 +424,7 @@ new #[Title('Label designer')] class extends Component {
                 ['job_identifier' => "{$this->template->code} ({$this->revisionCode}) | PREVIEW"],
                 $this->sampleDataSourceValues(),
             );
-            $this->previewSvg = $renderer->render($resolved, LabelRenderContext::fromStock($this->template->labelStock, 203));
+            $this->previewSvg = $renderer->render($resolved, LabelRenderContext::fromStock($this->template->labelStock, 203, includePreviewArtwork: true));
             Flux::modal('designer-preview')->show();
         } catch (\InvalidArgumentException $exception) {
             $this->addError('editor', $exception->getMessage());
@@ -994,6 +994,15 @@ new #[Title('Label designer')] class extends Component {
                 style="width: {{ $this->canvasWidth }}mm; aspect-ratio: {{ $this->canvasWidth }} / {{ $this->canvasHeight }}; container-type: size;"
                 aria-label="{{ __('Label canvas') }}"
             >
+                @if ($this->template->labelStock->previewArtworkDataUri())
+                    <img
+                        src="{{ $this->template->labelStock->previewArtworkDataUri() }}"
+                        alt=""
+                        draggable="false"
+                        class="pointer-events-none absolute left-1/2 top-1/2 max-w-none select-none"
+                        style="width: {{ ((float) $this->template->labelStock->width / $this->canvasWidth) * 100 }}%; height: {{ ((float) $this->template->labelStock->height / $this->canvasHeight) * 100 }}%; transform: translate(-50%, -50%) rotate(-{{ $canvasRotation }}deg);"
+                    />
+                @endif
                 @foreach ($elements as $index => $element)
                     @php
                         $left = ((float) $element['x'] / $this->canvasWidth) * 100;

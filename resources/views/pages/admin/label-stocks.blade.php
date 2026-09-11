@@ -5,12 +5,16 @@ use App\Models\LabelStock;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 new #[Title('Label stocks')] class extends Component {
+    use WithFileUploads;
+
     public ?int $stockId = null;
 
     public string $name = '';
@@ -26,6 +30,10 @@ new #[Title('Label stocks')] class extends Component {
     public string $description = '';
 
     public bool $isActive = true;
+
+    public mixed $previewArtwork = null;
+
+    public bool $removePreviewArtwork = false;
 
     public function boot(): void
     {
@@ -78,6 +86,8 @@ new #[Title('Label stocks')] class extends Component {
         $this->mediaType = $stock->media_type->value;
         $this->description = $stock->description ?? '';
         $this->isActive = $stock->is_active;
+        $this->previewArtwork = null;
+        $this->removePreviewArtwork = false;
         $this->resetValidation();
 
         Flux::modal('stock-form')->show();
@@ -93,11 +103,22 @@ new #[Title('Label stocks')] class extends Component {
             'mediaType' => ['required', Rule::enum(LabelMediaType::class)],
             'description' => ['nullable', 'string', 'max:5000'],
             'isActive' => ['required', 'boolean'],
+            'previewArtwork' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:10240'],
+            'removePreviewArtwork' => ['required', 'boolean'],
         ]);
 
         $stock = $this->stockId === null
             ? new LabelStock()
             : LabelStock::query()->findOrFail($this->stockId);
+
+        $oldPreviewArtworkPath = $stock->preview_artwork_path;
+        $previewArtworkPath = $oldPreviewArtworkPath;
+
+        if ($validated['previewArtwork'] !== null) {
+            $previewArtworkPath = $validated['previewArtwork']->store('label-stock-artwork', 'public');
+        } elseif ($validated['removePreviewArtwork']) {
+            $previewArtworkPath = null;
+        }
 
         $stock->fill([
             'name' => $validated['name'],
@@ -106,8 +127,13 @@ new #[Title('Label stocks')] class extends Component {
             'height' => number_format((float) $validated['height'], 3, '.', ''),
             'media_type' => $validated['mediaType'],
             'description' => filled($validated['description']) ? $validated['description'] : null,
+            'preview_artwork_path' => $previewArtworkPath,
             'is_active' => $validated['isActive'],
         ])->save();
+
+        if ($oldPreviewArtworkPath !== null && $oldPreviewArtworkPath !== $previewArtworkPath) {
+            Storage::disk('public')->delete($oldPreviewArtworkPath);
+        }
 
         $this->resetStockForm();
         unset($this->stocks);
@@ -117,7 +143,7 @@ new #[Title('Label stocks')] class extends Component {
 
     private function resetStockForm(): void
     {
-        $this->reset('stockId', 'name', 'sku', 'width', 'height', 'description');
+        $this->reset('stockId', 'name', 'sku', 'width', 'height', 'description', 'previewArtwork', 'removePreviewArtwork');
         $this->mediaType = LabelMediaType::Gap->value;
         $this->isActive = true;
         $this->resetValidation();
@@ -158,11 +184,20 @@ new #[Title('Label stocks')] class extends Component {
                 </div>
 
                 <div class="flex min-h-28 items-center justify-center rounded-lg bg-zinc-100 p-4 dark:bg-zinc-800">
-                    <div
-                        class="max-h-24 max-w-full border border-zinc-300 bg-white shadow-sm dark:border-zinc-600"
-                        style="aspect-ratio: {{ (float) $stock->width }} / {{ (float) $stock->height }}; width: {{ min(100, max(25, $stock->widthInInches() * 24)) }}%;"
-                        aria-hidden="true"
-                    ></div>
+                    @if ($stock->previewArtworkDataUri())
+                        <img
+                            src="{{ $stock->previewArtworkDataUri() }}"
+                            alt="{{ __('Printed artwork for :stock', ['stock' => $stock->name]) }}"
+                            class="max-h-24 max-w-full border border-zinc-300 bg-white object-fill shadow-sm dark:border-zinc-600"
+                            style="aspect-ratio: {{ (float) $stock->width }} / {{ (float) $stock->height }};"
+                        />
+                    @else
+                        <div
+                            class="max-h-24 max-w-full border border-zinc-300 bg-white shadow-sm dark:border-zinc-600"
+                            style="aspect-ratio: {{ (float) $stock->width }} / {{ (float) $stock->height }}; width: {{ min(100, max(25, $stock->widthInInches() * 24)) }}%;"
+                            aria-hidden="true"
+                        ></div>
+                    @endif
                 </div>
 
                 <div>
@@ -217,6 +252,18 @@ new #[Title('Label stocks')] class extends Component {
             </flux:select>
 
             <flux:textarea wire:model="description" :label="__('Description')" rows="3" placeholder="Optional notes about the material, adhesive, color, or intended use." />
+            <div class="space-y-3">
+                <flux:input
+                    wire:model="previewArtwork"
+                    :label="__('Preprinted stock artwork')"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    :description="__('Upload a flat, edge-to-edge image of the stock. It appears behind variable elements in previews and is never sent to the printer.')"
+                />
+                @if ($stockId && LabelStock::query()->find($stockId)?->preview_artwork_path)
+                    <flux:switch wire:model="removePreviewArtwork" :label="__('Remove the current preview artwork')" />
+                @endif
+            </div>
             <flux:switch wire:model="isActive" :label="__('Stock is active')" :description="__('Disabled stocks and their templates are hidden from the print station.')" />
 
             <div class="flex justify-end gap-2">

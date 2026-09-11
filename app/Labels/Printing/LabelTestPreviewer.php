@@ -67,7 +67,7 @@ final readonly class LabelTestPreviewer
         return new LabelTestPreview(
             svg: $this->renderer->render(
                 $resolvedDefinition,
-                LabelRenderContext::fromStock($template->labelStock, 203),
+                LabelRenderContext::fromStock($template->labelStock, 203, includePreviewArtwork: true),
             ),
             resolvedValues: [
                 ...$inputValues,

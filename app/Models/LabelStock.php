@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * @property int $id
@@ -18,12 +19,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property LabelMediaType $media_type
  * @property string|null $description
  * @property string|null $sku
+ * @property string|null $preview_artwork_path
  * @property bool $is_active
  * @property int $label_templates_count
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'width', 'height', 'media_type', 'description', 'sku', 'is_active'])]
+#[Fillable(['name', 'width', 'height', 'media_type', 'description', 'sku', 'preview_artwork_path', 'is_active'])]
 class LabelStock extends Model
 {
     /** @use HasFactory<LabelStockFactory> */
@@ -47,6 +49,18 @@ class LabelStock extends Model
     public function heightInInches(): float
     {
         return (float) $this->height / 25.4;
+    }
+
+    public function previewArtworkDataUri(): ?string
+    {
+        if ($this->preview_artwork_path === null || ! Storage::disk('public')->exists($this->preview_artwork_path)) {
+            return null;
+        }
+
+        $contents = Storage::disk('public')->get($this->preview_artwork_path);
+        $mimeType = Storage::disk('public')->mimeType($this->preview_artwork_path) ?: 'image/png';
+
+        return 'data:'.$mimeType.';base64,'.base64_encode($contents);
     }
 
     /**

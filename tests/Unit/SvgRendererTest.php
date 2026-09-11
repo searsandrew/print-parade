@@ -36,6 +36,28 @@ test('the calibration label renders as a stock-sized svg preview', function () {
         ->and($svg)->not->toContain('{{');
 });
 
+test('stock artwork is rendered behind variable preview elements', function () {
+    $element = [
+        'id' => '01K00000000000000000000000',
+        'type' => 'text',
+        'x' => 5,
+        'y' => 5,
+        'width' => 50,
+        'height' => 10,
+        'rotation' => 0,
+        'value' => 'Variable text',
+        'style' => ['font_family' => 'sans', 'font_size' => 4, 'font_weight' => 'normal', 'alignment' => 'left'],
+    ];
+    $context = new LabelRenderContext(101.6, 50.8, 203, 'data:image/png;base64,cHJpbnRlZA==');
+
+    $svg = (new SvgRenderer)->render(new ResolvedLabelDefinition([$element], []), $context);
+
+    expect($svg)
+        ->toContain('data-stock-preview-artwork="true"')
+        ->toContain('href="data:image/png;base64,cHJpbnRlZA=="')
+        ->and(strpos($svg, 'data-stock-preview-artwork="true"'))->toBeLessThan(strpos($svg, 'Variable text'));
+});
+
 test('linear barcode bars shorten upward while text remains anchored to the bottom', function () {
     $base = svgBarcodeElement(['bar_height' => 14]);
     $short = svgBarcodeElement(['bar_height' => 10]);
